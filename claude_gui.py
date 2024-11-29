@@ -5,13 +5,25 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from claude_api import ClaudeAPI
+import logging
 
+# Configure basic logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class ClaudeChatApp(QWidget):
-    def __init__(self, api_key):
+    def __init__(self):
         super().__init__()
-        self.api = ClaudeAPI(api_key)
-        self.initUI()
+        logger.info("Initializing Claude Chat GUI")
+        try:
+            self.api = ClaudeAPI()
+            self.initUI()
+        except Exception as e:
+            logger.error(f"Failed to initialize application: {str(e)}")
+            raise
 
     def initUI(self):
         self.setWindowTitle("Claude Chat")
@@ -30,8 +42,6 @@ class ClaudeChatApp(QWidget):
         send_button.clicked.connect(self.send_message)  # No parentheses here
         hbox.addWidget(send_button)
 
-
-
         upload_button = QPushButton("Upload Image")
         upload_button.clicked.connect(self.upload_image)
         hbox.addWidget(upload_button)
@@ -45,26 +55,33 @@ class ClaudeChatApp(QWidget):
 
     def send_message(self):
         message = self.message_input.text()
-
-        response = self.api.send_message(message)  # Directly send, no image here
-        self.update_chat_display(f"User: {message}\nClaude: {response}\n")
-        self.message_input.clear()
-
+        logger.debug(f"Sending message: {message}")
+        try:
+            response = self.api.send_message(message)
+            self.update_chat_display(f"User: {message}\nClaude: {response}\n")
+            self.message_input.clear()
+        except Exception as e:
+            logger.error(f"Error sending message: {str(e)}")
+            self.update_chat_display(f"Error: {str(e)}\n")
 
     def upload_image(self):
+        logger.debug("Opening file dialog for image upload")
         file_dialog = QFileDialog()
         file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
         file_dialog.setNameFilter("Image files (*.jpg *.jpeg *.png *.gif *.webp)")
-        if file_dialog.exec():  # Open only if 'Open' clicked
+        
+        if file_dialog.exec():
             filename = file_dialog.selectedFiles()[0]
+            logger.debug(f"Selected image file: {filename}")
+            user_message = self.message_input.text()
 
-            user_message = self.message_input.text()  # Allows combined text and image
-
-
-            response = self.api.send_message(user_message, filename)
-            
-            self.update_chat_display(f"User: {user_message if user_message else '[Image]'}\nClaude: {response}\n")
-            self.message_input.clear()
+            try:
+                response = self.api.send_message(user_message, filename)
+                self.update_chat_display(f"User: {user_message if user_message else '[Image]'}\nClaude: {response}\n")
+                self.message_input.clear()
+            except Exception as e:
+                logger.error(f"Error processing image: {str(e)}")
+                self.update_chat_display(f"Error: {str(e)}\n")
 
     def clear_conversation(self):
         self.api.clear_conversation()
@@ -74,14 +91,15 @@ class ClaudeChatApp(QWidget):
     def update_chat_display(self, text):
         self.chat_display.append(text)  # Correct method to add text
 
-
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    logger.info("Starting Claude Chat application")
     try:
-        ex = ClaudeChatApp() #No longer pass the API key here
+        ex = ClaudeChatApp()
         ex.show()
+        logger.info("Application window displayed")
         sys.exit(app.exec())
-    except ValueError as e:  # specifically catch the API key error
-        print(f"Error: {e}") # Print to console so user knows the issue
-        sys.exit(1) # Exit with error code
+    except Exception as e:
+        logger.error(f"Application failed to start: {str(e)}")
+        print(f"Error: {e}")
+        sys.exit(1)

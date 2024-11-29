@@ -4,11 +4,21 @@ import base64
 import httpx
 import json
 import os
+import logging
+
+# Configure basic logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class ClaudeAPI:
     def __init__(self):
+        logger.info("Initializing ClaudeAPI")
         self.api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
+            logger.error("ANTHROPIC_API_KEY environment variable not set")
             raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
         self.client = anthropic.Anthropic(api_key=self.api_key)
         self.conversation_history = []
@@ -16,6 +26,7 @@ class ClaudeAPI:
     def send_message(self, message, image_path=None):
         if image_path:
             try:
+                logger.debug(f"Processing image: {image_path}")
                 image_media_type = image_path.split('.')[-1]
                 if image_media_type not in ['jpeg', 'jpg', 'png', 'gif', 'webp']:
                     raise ValueError("Unsupported image type. Please use JPEG, PNG, GIF, or WEBP.")
@@ -40,23 +51,30 @@ class ClaudeAPI:
                 }
 
             except FileNotFoundError:
+                logger.error(f"Image file not found: {image_path}")
                 return "Image file not found."
             except Exception as e:  # Catch broader exceptions
+                logger.error(f"Error processing image: {str(e)}")
                 return f"Error processing image: {e}"
         else:
             user_message = {"role": "user", "content": message}
 
         self.conversation_history.append(user_message)
 
-        response = self.client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,
-            messages=self.conversation_history,
-        )
-       
-        self.conversation_history.append(response.to_dict()) # Ensure consistent dictionary format
-        
-        return self.extract_content(response)
+        logger.debug("Sending message to Claude API")
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1024,
+                messages=self.conversation_history,
+            )
+            logger.debug("Received response from Claude API")
+            self.conversation_history.append(response.to_dict()) # Ensure consistent dictionary format
+            
+            return self.extract_content(response)
+        except Exception as e:
+            logger.error(f"Error communicating with Claude API: {str(e)}")
+            raise
 
     def extract_content(self, response):
         content = ""
