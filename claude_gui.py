@@ -1,12 +1,15 @@
 # claude_gui.py
 import sys
+import time
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QLabel, QTextEdit, QFileDialog,
-                             QMessageBox, QDialog)
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+                             QMessageBox, QDialog, QScrollArea, QFrame)
+from PyQt6.QtGui import QPixmap, QColor, QPalette
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from claude_api import ClaudeAPI
 from config import Config
+from qt_material import apply_stylesheet
+
 import logging
 
 # Configure basic logging
@@ -15,6 +18,61 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+class LoadingIndicator(QThread):
+    update_signal = pyqtSignal(str)
+
+    def run(self):
+        dots = [".", "..", "..."]
+        i = 0
+        while True:
+            self.update_signal.emit(f"Thinking{dots[i]}")
+            time.sleep(0.5)
+            i = (i + 1) % 3
+
+class MessageBubble(QFrame):
+    def __init__(self, text, is_user=True):
+        super().__init__()
+        self.setObjectName("messageBubble")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        message = QLabel(text)
+        message.setWordWrap(True)
+        message.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(message)
+
+        if is_user:
+            self.setStyleSheet("""
+                QFrame#messageBubble {
+                    background-color: #DCF8C6;
+                    border-radius: 10px;
+                    padding: 10px;
+                    margin: 5px;
+                }
+            """)
+            layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+        else:
+            self.setStyleSheet("""
+                QFrame#messageBubble {
+                    background-color: #FFFFFF;
+                    border-radius: 10px;
+                    padding: 10px;
+                    margin: 5px;
+                }
+            """)
+            layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+class ScrollableMessageArea(QScrollArea):
+    def __init__(self):
+        super().__init__()
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.setWidget(self.content_widget)
 
 class APIKeyDialog(QDialog):
     def __init__(self, parent=None):
@@ -74,30 +132,47 @@ class ClaudeChatApp(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Claude Chat")
+        self.setMinimumSize(600, 400)
 
         vbox = QVBoxLayout()
+        vbox.setSpacing(10)
 
-        self.chat_display = QTextEdit()
-        self.chat_display.setReadOnly(True)  # Make display area read-only
-        vbox.addWidget(self.chat_display)
+        self.chat_display = ScrollableMessageArea()
+        vbox.addWidget(self.chat_display, 1)
 
         hbox = QHBoxLayout()
+        hbox.setSpacing(10)
+
         self.message_input = QLineEdit()
+        self.message_input.setPlaceholderText("Type your message here...")
         hbox.addWidget(self.message_input)
 
         send_button = QPushButton("Send")
-        send_button.clicked.connect(self.send_message)  # No parentheses here
+        send_button.clicked.connect(self.send_message)
+        send_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         hbox.addWidget(send_button)
 
         upload_button = QPushButton("Upload Image")
         upload_button.clicked.connect(self.upload_image)
         hbox.addWidget(upload_button)
-        
+
         clear_button = QPushButton("Clear Conversation")
         clear_button.clicked.connect(self.clear_conversation)
         hbox.addWidget(clear_button)
 
         vbox.addLayout(hbox)
+        vbox.setContentsMargins(20, 20, 20, 20)
         self.setLayout(vbox)
 
     def send_message(self):
@@ -105,8 +180,14 @@ class ClaudeChatApp(QWidget):
         logger.debug(f"Sending message: {message}")
         try:
             response = self.api.send_message(message)
-            self.update_chat_display(f"User: {message}\nClaude: {response}\n")
+            self.update_chat_display(message, is_user=True)
+            self.update_chat_display(response, is_user=False)
             self.message_input.clear()
+            
+            # Scroll to the bottom
+            scrollbar = self.chat_display.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")
             self.update_chat_display(f"Error: {str(e)}\n")
@@ -124,7 +205,8 @@ class ClaudeChatApp(QWidget):
 
             try:
                 response = self.api.send_message(user_message, filename)
-                self.update_chat_display(f"User: {user_message if user_message else '[Image]'}\nClaude: {response}\n")
+                self.update_chat_display(user_message if user_message else '[Image]', is_user=True)
+                self.update_chat_display(response, is_user=False)
                 self.message_input.clear()
             except Exception as e:
                 logger.error(f"Error processing image: {str(e)}")
@@ -132,11 +214,19 @@ class ClaudeChatApp(QWidget):
 
     def clear_conversation(self):
         self.api.clear_conversation()
-        self.chat_display.clear()
+        self.chat_display.content_widget.deleteLater()
+        self.chat_display.content_widget = QWidget()
+        self.chat_display.content_layout = QVBoxLayout(self.chat_display.content_widget)
+        self.chat_display.setWidget(self.chat_display.content_widget)
         self.update_chat_display("Conversation cleared.\n")
 
-    def update_chat_display(self, text):
-        self.chat_display.append(text)  # Correct method to add text
+    def update_chat_display(self, text, is_user=True):
+        bubble = MessageBubble(text, is_user)
+        self.chat_display.content_layout.addWidget(bubble)
+        
+        # Scroll to the bottom
+        scrollbar = self.chat_display.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def show_api_key_dialog(self):
         dialog = APIKeyDialog(self)
@@ -149,9 +239,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     logger.info("Starting Claude Chat application")
     try:
+        apply_stylesheet(app, theme='dark_teal.xml')
         ex = ClaudeChatApp()
         ex.show()
         logger.info("Application window displayed")
+        
         sys.exit(app.exec())
     except Exception as e:
         logger.error(f"Application failed to start: {str(e)}")
