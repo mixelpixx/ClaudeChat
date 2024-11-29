@@ -1,0 +1,1123 @@
+Create a Message
+Send a structured list of input messages with text and/or image content, and the model will generate the next message in the conversation.
+
+The Messages API can be used for either single queries or stateless multi-turn conversations.
+
+POST
+/
+v1
+/
+messages
+Headers
+anthropic-beta
+string[]
+Optional header to specify the beta version(s) you want to use.
+
+To use multiple betas, use a comma separated list like beta1,beta2 or specify the header multiple times for each beta.
+
+anthropic-version
+string
+required
+The version of the Anthropic API you want to use.
+
+Read more about versioning and our version history here.
+
+x-api-key
+string
+required
+Your unique API key for authentication.
+
+This key is required in the header of all API requests, to authenticate your account and access Anthropic's services. Get your API key through the Console. Each key is scoped to a Workspace.
+
+Body
+application/json
+model
+string
+required
+The model that will complete your prompt.
+
+See models for additional details and options.
+
+messages
+object[]
+required
+Input messages.
+
+Our models are trained to operate on alternating user and assistant conversational turns. When creating a new Message, you specify the prior conversational turns with the messages parameter, and the model then generates the next Message in the conversation. Consecutive user or assistant turns in your request will be combined into a single turn.
+
+Each input message must be an object with a role and content. You can specify a single user-role message, or you can include multiple user and assistant messages.
+
+If the final message uses the assistant role, the response content will continue immediately from the content in that message. This can be used to constrain part of the model's response.
+
+Example with a single user message:
+
+[{"role": "user", "content": "Hello, Claude"}]
+Example with multiple conversational turns:
+
+[
+  {"role": "user", "content": "Hello there."},
+  {"role": "assistant", "content": "Hi, I'm Claude. How can I help you?"},
+  {"role": "user", "content": "Can you explain LLMs in plain English?"},
+]
+Example with a partially-filled response from Claude:
+
+[
+  {"role": "user", "content": "What's the Greek name for Sun? (A) Sol (B) Helios (C) Sun"},
+  {"role": "assistant", "content": "The best answer is ("},
+]
+Each input message content may be either a single string or an array of content blocks, where each block has a specific type. Using a string for content is shorthand for an array of one content block of type "text". The following input messages are equivalent:
+
+{"role": "user", "content": "Hello, Claude"}
+{"role": "user", "content": [{"type": "text", "text": "Hello, Claude"}]}
+Starting with Claude 3 models, you can also send image content blocks:
+
+{"role": "user", "content": [
+  {
+    "type": "image",
+    "source": {
+      "type": "base64",
+      "media_type": "image/jpeg",
+      "data": "/9j/4AAQSkZJRg...",
+    }
+  },
+  {"type": "text", "text": "What is in this image?"}
+]}
+We currently support the base64 source type for images, and the image/jpeg, image/png, image/gif, and image/webp media types.
+
+See examples for more input examples.
+
+Note that if you want to include a system prompt, you can use the top-level system parameter — there is no "system" role for input messages in the Messages API.
+
+
+Hide child attributes
+
+messages.role
+enum<string>
+required
+Available options: user, assistant 
+messages.content
+
+string
+required
+max_tokens
+integer
+required
+The maximum number of tokens to generate before stopping.
+
+Note that our models may stop before reaching this maximum. This parameter only specifies the absolute maximum number of tokens to generate.
+
+Different models have different maximum values for this parameter. See models for details.
+
+metadata
+object
+An object describing metadata about the request.
+
+
+Hide child attributes
+
+metadata.user_id
+string | null
+An external identifier for the user who is associated with the request.
+
+This should be a uuid, hash value, or other opaque identifier. Anthropic may use this id to help detect abuse. Do not include any identifying information such as name, email address, or phone number.
+
+stop_sequences
+string[]
+Custom text sequences that will cause the model to stop generating.
+
+Our models will normally stop when they have naturally completed their turn, which will result in a response stop_reason of "end_turn".
+
+If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
+
+stream
+boolean
+Whether to incrementally stream the response using server-sent events.
+
+See streaming for details.
+
+system
+
+string
+System prompt.
+
+A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role. See our guide to system prompts.
+
+temperature
+number
+Amount of randomness injected into the response.
+
+Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+
+Note that even with temperature of 0.0, the results will not be fully deterministic.
+
+tool_choice
+object
+How the model should use the provided tools. The model can use a specific tool, any available tool, or decide by itself.
+
+Auto
+Any
+Tool
+
+Hide child attributes
+
+tool_choice.type
+enum<string>
+required
+Available options: any 
+tool_choice.disable_parallel_tool_use
+boolean
+Whether to disable parallel tool use.
+
+Defaults to false. If set to true, the model will output exactly one tool use.
+
+tools
+object[]
+Definitions of tools that the model may use.
+
+If you include tools in your API request, the model may return tool_use content blocks that represent the model's use of those tools. You can then run those tools using the tool input generated by the model and then optionally return results back to the model using tool_result content blocks.
+
+Each tool definition includes:
+
+name: Name of the tool.
+description: Optional, but strongly-recommended description of the tool.
+input_schema: JSON schema for the tool input shape that the model will produce in tool_use output content blocks.
+For example, if you defined tools as:
+
+[
+  {
+    "name": "get_stock_price",
+    "description": "Get the current stock price for a given ticker symbol.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "The stock ticker symbol, e.g. AAPL for Apple Inc."
+        }
+      },
+      "required": ["ticker"]
+    }
+  }
+]
+And then asked the model "What's the S&P 500 at today?", the model might produce tool_use content blocks in the response like this:
+
+[
+  {
+    "type": "tool_use",
+    "id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "name": "get_stock_price",
+    "input": { "ticker": "^GSPC" }
+  }
+]
+You might then run your get_stock_price tool with {"ticker": "^GSPC"} as an input, and return the following back to the model in a subsequent user message:
+
+[
+  {
+    "type": "tool_result",
+    "tool_use_id": "toolu_01D7FLrfh4GYq7yT1ULFeyMV",
+    "content": "259.75 USD"
+  }
+]
+Tools can be used for workflows that include running client-side tools and functions, or more generally whenever you want the model to produce a particular JSON structure of output.
+
+See our guide for more details.
+
+Tool
+ComputerUseTool_20241022
+BashTool_20241022
+TextEditor_20241022
+
+Hide child attributes
+
+tools.cache_control
+object | null
+
+Show child attributes
+
+tools.type
+enum<string>
+required
+Available options: computer_20241022 
+tools.name
+enum<string>
+required
+Name of the tool.
+
+This is how the tool will be called by the model and in tool_use blocks.
+
+Available options: computer 
+tools.display_height_px
+integer
+required
+The height of the display in pixels.
+
+tools.display_width_px
+integer
+required
+The width of the display in pixels.
+
+tools.display_number
+integer | null
+The X11 display number (e.g. 0, 1) for the display.
+
+top_k
+integer
+Only sample from the top K options for each subsequent token.
+
+Used to remove "long tail" low probability responses. Learn more technical details here.
+
+Recommended for advanced use cases only. You usually only need to use temperature.
+
+top_p
+number
+Use nucleus sampling.
+
+In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
+
+Recommended for advanced use cases only. You usually only need to use temperature.
+
+Response
+200 - application/json
+id
+string
+required
+Unique object identifier.
+
+The format and length of IDs may change over time.
+
+type
+enum<string>
+default: message
+required
+Object type.
+
+For Messages, this is always "message".
+
+Available options: message 
+role
+enum<string>
+default: assistant
+required
+Conversational role of the generated message.
+
+This will always be "assistant".
+
+Available options: assistant 
+content
+object[]
+required
+Content generated by the model.
+
+This is an array of content blocks, each of which has a type that determines its shape.
+
+Example:
+
+[{"type": "text", "text": "Hi, I'm Claude."}]
+If the request input messages ended with an assistant turn, then the response content will continue directly from that last turn. You can use this to constrain the model's output.
+
+For example, if the input messages were:
+
+[
+  {"role": "user", "content": "What's the Greek name for Sun? (A) Sol (B) Helios (C) Sun"},
+  {"role": "assistant", "content": "The best answer is ("}
+]
+Then the response content might be:
+
+[{"type": "text", "text": "B)"}]
+Text
+Tool Use
+
+Hide child attributes
+
+content.type
+enum<string>
+default: text
+required
+Available options: text 
+content.text
+string
+required
+model
+string
+required
+The model that handled the request.
+
+stop_reason
+enum<string> | null
+required
+The reason that we stopped.
+
+This may be one the following values:
+
+"end_turn": the model reached a natural stopping point
+"max_tokens": we exceeded the requested max_tokens or the model's maximum
+"stop_sequence": one of your provided custom stop_sequences was generated
+"tool_use": the model invoked one or more tools
+In non-streaming mode this value is always non-null. In streaming mode, it is null in the message_start event and non-null otherwise.
+
+Available options: end_turn, max_tokens, stop_sequence, tool_use 
+stop_sequence
+string | null
+required
+Which custom stop sequence was generated, if any.
+
+This value will be a non-null string if one of your custom stop sequences was generated.
+
+usage
+object
+required
+Billing and rate-limit usage.
+
+Anthropic's API bills and rate-limits by token counts, as tokens represent the underlying cost to our systems.
+
+Under the hood, the API transforms requests into a format suitable for the model. The model's output then goes through a parsing stage before becoming an API response. As a result, the token counts in usage will not match one-to-one with the exact visible content of an API request or response.
+
+For example, output_tokens will be non-zero, even for an empty string response from Claude.
+
+
+Hide child attributes
+
+usage.input_tokens
+integer
+required
+The number of input tokens which were used.
+
+usage.cache_creation_input_tokens
+integer | null
+required
+The number of input tokens used to create the cache entry.
+
+usage.cache_read_input_tokens
+integer | null
+required
+The number of input tokens read from the cache.
+
+usage.output_tokens
+integer
+required
+The number of output tokens which were used.
+
+EXAMPLE CODE - PYTHON
+
+import anthropic
+
+anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, world"}
+    ]
+)
+
+EXAMPLE CODE - PYTHON
+
+
+Messages
+Messages examples
+Request and response examples for the Messages API
+
+See the API reference for full documentation on available parameters.
+
+​
+Basic request and response
+
+Shell
+
+Python
+
+TypeScript
+
+import anthropic
+
+message = anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, Claude"}
+    ]
+)
+print(message)
+JSON
+
+{
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello!"
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 6
+  }
+}
+​
+Multiple conversational turns
+The Messages API is stateless, which means that you always send the full conversational history to the API. You can use this pattern to build up a conversation over time. Earlier conversational turns don’t necessarily need to actually originate from Claude — you can use synthetic assistant messages.
+
+Shell
+
+#!/bin/sh
+curl https://api.anthropic.com/v1/messages \
+     --header "x-api-key: $ANTHROPIC_API_KEY" \
+     --header "anthropic-version: 2023-06-01" \
+     --header "content-type: application/json" \
+     --data \
+'{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "messages": [
+        {"role": "user", "content": "Hello, Claude"},
+        {"role": "assistant", "content": "Hello!"},
+        {"role": "user", "content": "Can you describe LLMs to me?"}
+
+    ]
+}'
+Python
+
+import anthropic
+
+message = anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, Claude"},
+        {"role": "assistant", "content": "Hello!"},
+        {"role": "user", "content": "Can you describe LLMs to me?"}
+    ],
+)
+print(message)
+
+TypeScript
+
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+await anthropic.messages.create({
+  model: 'claude-3-5-sonnet-20241022',
+  max_tokens: 1024,
+  messages: [
+    {"role": "user", "content": "Hello, Claude"},
+    {"role": "assistant", "content": "Hello!"},
+    {"role": "user", "content": "Can you describe LLMs to me?"}
+  ]
+});
+JSON
+
+{
+    "id": "msg_018gCsTGsXkYJVqYPxTgDHBU",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+        {
+            "type": "text",
+            "text": "Sure, I'd be happy to provide..."
+        }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 30,
+      "output_tokens": 309
+    }
+}
+​
+Putting words in Claude’s mouth
+You can pre-fill part of Claude’s response in the last position of the input messages list. This can be used to shape Claude’s response. The example below uses "max_tokens": 1 to get a single multiple choice answer from Claude.
+
+
+Shell
+
+Python
+
+TypeScript
+
+import anthropic
+
+message = anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1,
+    messages=[
+        {"role": "user", "content": "What is latin for Ant? (A) Apoidea, (B) Rhopalocera, (C) Formicidae"},
+        {"role": "assistant", "content": "The answer is ("}
+    ]
+)
+print(message)
+JSON
+
+{
+  "id": "msg_01Q8Faay6S7QPTvEUUQARt7h",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "C"
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 42,
+    "output_tokens": 1
+  }
+}
+​
+Vision
+Claude can read both text and images in requests. Currently, we support the base64 source type for images, and the image/jpeg, image/png, image/gif, and image/webp media types. See our vision guide for more details.
+
+
+Shell
+
+*Python CODE EXAMPLES*
+
+
+import anthropic
+import base64
+import httpx
+
+image_url = "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"
+image_media_type = "image/jpeg"
+image_data = base64.standard_b64encode(httpx.get(image_url).content).decode("utf-8")
+
+message = anthropic.Anthropic().messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image_media_type,
+                        "data": image_data,
+                    },
+                }
+            ],
+        }
+    ],
+)
+print(message)
+JSON
+
+{
+  "id": "msg_01EcyWo6m4hyW8KHs2y2pei5",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "This image shows an ant, specifically a close-up view of an ant. The ant is shown in detail, with its distinct head, antennae, and legs clearly visible. The image is focused on capturing the intricate details and features of the ant, likely taken with a macro lens to get an extreme close-up perspective."
+    }
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1551,
+    "output_tokens": 71
+  }
+}
+
+
+Tool use (function calling)
+Claude is capable of interacting with external client-side tools and functions, allowing you to equip Claude with your own custom tools to perform a wider variety of tasks.
+
+Learn everything you need to master tool use with Claude via our new comprehensive tool use course! Please continue to share your ideas and suggestions using this form.
+
+Here’s an example of how to provide tools to Claude using the Messages API:
+
+
+Shell
+
+Python
+
+import anthropic
+
+client = anthropic.Anthropic()
+
+response = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    tools=[
+        {
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    }
+                },
+                "required": ["location"],
+            },
+        }
+    ],
+    messages=[{"role": "user", "content": "What's the weather like in San Francisco?"}],
+)
+print(response)
+​
+How tool use works
+Integrate external tools with Claude in these steps:
+
+1
+Provide Claude with tools and a user prompt
+
+Define tools with names, descriptions, and input schemas in your API request.
+Include a user prompt that might require these tools, e.g., “What’s the weather in San Francisco?”
+2
+Claude decides to use a tool
+
+Claude assesses if any tools can help with the user’s query.
+If yes, Claude constructs a properly formatted tool use request.
+The API response has a stop_reason of tool_use, signaling Claude’s intent.
+3
+Extract tool input, run code, and return results
+
+On your end, extract the tool name and input from Claude’s request.
+Execute the actual tool code client-side.
+Continue the conversation with a new user message containing a tool_result content block.
+4
+Claude uses tool result to formulate a response
+
+Claude analyzes the tool results to craft its final response to the original user prompt.
+Note: Steps 3 and 4 are optional. For some workflows, Claude’s tool use request (step 2) might be all you need, without sending results back to Claude.
+
+Tools are user-provided
+
+It’s important to note that Claude does not have access to any built-in server-side tools. All tools must be explicitly provided by you, the user, in each API request. This gives you full control and flexibility over the tools Claude can use.
+
+The computer use (beta) functionality is an exception - it introduces tools that are provided by Anthropic but implemented by you, the user.
+
+​
+How to implement tool use
+​
+Choosing a model
+Generally, use Claude 3.5 Sonnet or Claude 3 Opus for complex tools and ambiguous queries; they handle multiple tools better and seek clarification when needed.
+
+Use Claude 3 Haiku for straightforward tools, but note it may infer missing parameters.
+
+​
+Specifying tools
+Tools are specified in the tools top-level parameter of the API request. Each tool definition includes:
+
+Parameter	Description
+name	The name of the tool. Must match the regex ^[a-zA-Z0-9_-]{1,64}$.
+description	A detailed plaintext description of what the tool does, when it should be used, and how it behaves.
+input_schema	A JSON Schema object defining the expected parameters for the tool.
+
+Example simple tool definition
+
+JSON
+
+{
+  "name": "get_weather",
+  "description": "Get the current weather in a given location",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "description": "The city and state, e.g. San Francisco, CA"
+      },
+      "unit": {
+        "type": "string",
+        "enum": ["celsius", "fahrenheit"],
+        "description": "The unit of temperature, either 'celsius' or 'fahrenheit'"
+      }
+    },
+    "required": ["location"]
+  }
+}
+This tool, named get_weather, expects an input object with a required location string and an optional unit string that must be either “celsius” or “fahrenheit”.
+
+​
+Tool use system prompt
+When you call the Anthropic API with the tools parameter, we construct a special system prompt from the tool definitions, tool configuration, and any user-specified system prompt. The constructed prompt is designed to instruct the model to use the specified tool(s) and provide the necessary context for the tool to operate properly:
+
+
+In this environment you have access to a set of tools you can use to answer the user's question.
+{{ FORMATTING INSTRUCTIONS }}
+String and scalar parameters should be specified as is, while lists and objects should use JSON format. Note that spaces for string values are not stripped. The output is not expected to be valid XML and is parsed with regular expressions.
+Here are the functions available in JSONSchema format:
+{{ TOOL DEFINITIONS IN JSON SCHEMA }}
+{{ USER SYSTEM PROMPT }}
+{{ TOOL CONFIGURATION }}
+​
+Best practices for tool definitions
+To get the best performance out of Claude when using tools, follow these guidelines:
+
+Provide extremely detailed descriptions. This is by far the most important factor in tool performance. Your descriptions should explain every detail about the tool, including:
+What the tool does
+When it should be used (and when it shouldn’t)
+What each parameter means and how it affects the tool’s behavior
+Any important caveats or limitations, such as what information the tool does not return if the tool name is unclear. The more context you can give Claude about your tools, the better it will be at deciding when and how to use them. Aim for at least 3-4 sentences per tool description, more if the tool is complex.
+Prioritize descriptions over examples. While you can include examples of how to use a tool in its description or in the accompanying prompt, this is less important than having a clear and comprehensive explanation of the tool’s purpose and parameters. Only add examples after you’ve fully fleshed out the description.
+
+Example of a good tool description
+
+JSON
+
+{
+  "name": "get_stock_price",
+  "description": "Retrieves the current stock price for a given ticker symbol. The ticker symbol must be a valid symbol for a publicly traded company on a major US stock exchange like NYSE or NASDAQ. The tool will return the latest trade price in USD. It should be used when the user asks about the current or most recent price of a specific stock. It will not provide any other information about the stock or company.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "ticker": {
+        "type": "string",
+        "description": "The stock ticker symbol, e.g. AAPL for Apple Inc."
+      }
+    },
+    "required": ["ticker"]
+  }
+}
+
+Example poor tool description
+
+The good description clearly explains what the tool does, when to use it, what data it returns, and what the ticker parameter means. The poor description is too brief and leaves Claude with many open questions about the tool’s behavior and usage.
+
+​
+Controlling Claude’s output
+​
+Forcing tool use
+In some cases, you may want Claude to use a specific tool to answer the user’s question, even if Claude thinks it can provide an answer without using a tool. You can do this by specifying the tool in the tool_choice field like so:
+
+
+tool_choice = {"type": "tool", "name": "get_weather"}
+When working with the tool_choice parameter, we have three possible options:
+
+auto allows Claude to decide whether to call any provided tools or not. This is the default value.
+any tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+tool allows us to force Claude to always use a particular tool.
+This diagram illustrates how each option works:
+
+
+Note that when you have tool_choice as any or tool, we will prefill the assistant message to force a tool to be used. This means that the models will not emit a chain-of-thought text content block before tool_use content blocks, even if explicitly asked to do so.
+
+Our testing has shown that this should not reduce performance. If you would like to keep chain-of-thought (particularly with Opus) while still requesting that the model use a specific tool, you can use {"type": "auto"} for tool_choice (the default) and add explicit instructions in a user message. For example: What's the weather like in London? Use the get_weather tool in your response.
+
+​
+JSON output
+Tools do not necessarily need to be client-side functions — you can use tools anytime you want the model to return JSON output that follows a provided schema. For example, you might use a record_summary tool with a particular schema. See tool use examples for a full working example.
+
+​
+Chain of thought
+When using tools, Claude will often show its “chain of thought”, i.e. the step-by-step reasoning it uses to break down the problem and decide which tools to use. The Claude 3 Opus model will do this if tool_choice is set to auto (this is the default value, see Forcing tool use), and Sonnet and Haiku can be prompted into doing it.
+
+For example, given the prompt “What’s the weather like in San Francisco right now, and what time is it there?”, Claude might respond with:
+
+JSON
+
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "<thinking>To answer this question, I will: 1. Use the get_weather tool to get the current weather in San Francisco. 2. Use the get_time tool to get the current time in the America/Los_Angeles timezone, which covers San Francisco, CA.</thinking>"
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "get_weather",
+      "input": {"location": "San Francisco, CA"}
+    }
+  ]
+}
+This chain of thought gives insight into Claude’s reasoning process and can help you debug unexpected behavior.
+
+With the Claude 3 Sonnet model, chain of thought is less common by default, but you can prompt Claude to show its reasoning by adding something like "Before answering, explain your reasoning step-by-step in tags." to the user message or system prompt.
+
+It’s important to note that while the <thinking> tags are a common convention Claude uses to denote its chain of thought, the exact format (such as what this XML tag is named) may change over time. Your code should treat the chain of thought like any other assistant-generated text, and not rely on the presence or specific formatting of the <thinking> tags.
+
+​
+Disabling parallel tool use
+By default, Claude may use multiple tools to answer a user query. You can disable this behavior by setting disable_parallel_tool_use=true in the tool_choice field.
+
+When tool_choice type is auto, this ensures that Claude uses at most one tool
+When tool_choice type is any or tool, this ensures that Claude uses exactly one tool
+​
+Handling tool use and tool result content blocks
+When Claude decides to use one of the tools you’ve provided, it will return a response with a stop_reason of tool_use and one or more tool_use content blocks in the API response that include:
+
+id: A unique identifier for this particular tool use block. This will be used to match up the tool results later.
+name: The name of the tool being used.
+input: An object containing the input being passed to the tool, conforming to the tool’s input_schema.
+
+Example API response with a `tool_use` content block
+
+When you receive a tool use response, you should:
+
+Extract the name, id, and input from the tool_use block.
+Run the actual tool in your codebase corresponding to that tool name, passing in the tool input.
+[optional] Continue the conversation by sending a new message with the role of user, and a content block containing the tool_result type and the following information:
+tool_use_id: The id of the tool use request this is a result for.
+content: The result of the tool, as a string (e.g. "content": "15 degrees") or list of nested content blocks (e.g. "content": [{"type": "text", "text": "15 degrees"}]). These content blocks can use the text or image types.
+is_error (optional): Set to true if the tool execution resulted in an error.
+
+Example of successful tool result
+
+JSON
+
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "tool_result",
+      "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+      "content": "15 degrees"
+    }
+  ]
+}
+
+Example of tool result with images
+
+JSON
+
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "tool_result",
+      "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+      "content": [
+        {"type": "text", "text": "15 degrees"},
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": "/9j/4AAQSkZJRg...",
+          }
+        }
+      ]
+    }
+  ]
+}
+
+Example of empty tool result
+
+JSON
+
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "tool_result",
+      "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+    }
+  ]
+}
+After receiving the tool result, Claude will use that information to continue generating a response to the original user prompt.
+
+Differences from other APIs
+
+Unlike APIs that separate tool use or use special roles like tool or function, Anthropic’s API integrates tools directly into the user and assistant message structure.
+
+Messages contain arrays of text, image, tool_use, and tool_result blocks. user messages include client-side content and tool_result, while assistant messages contain AI-generated content and tool_use.
+
+​
+Troubleshooting errors
+There are a few different types of errors that can occur when using tools with Claude:
+
+
+Tool execution error
+
+If the tool itself throws an error during execution (e.g. a network error when fetching weather data), you can return the error message in the content along with "is_error": true:
+
+JSON
+
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "tool_result",
+      "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+      "content": "ConnectionError: the weather service API is not available (HTTP 500)",
+      "is_error": true
+    }
+  ]
+}
+Claude will then incorporate this error into its response to the user, e.g. “I’m sorry, I was unable to retrieve the current weather because the weather service API is not available. Please try again later.”
+
+
+Max tokens exceeded
+
+
+Invalid tool name
+
+
+<search_quality_reflection> tags
+
+​
+Tool use examples
+Here are a few code examples demonstrating various tool use patterns and techniques. For brevity’s sake, the tools are simple tools, and the tool descriptions are shorter than would be ideal to ensure best performance.
+
+
+Single tool example
+
+
+Multiple tool example
+
+You can provide Claude with multiple tools to choose from in a single request. Here’s an example with both a get_weather and a get_time tool, along with a user query that asks for both.
+
+
+Shell
+
+Python
+
+import anthropic
+client = anthropic.Anthropic()
+
+response = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    tools=[
+        {
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The unit of temperature, either 'celsius' or 'fahrenheit'"
+                    }
+                },
+                "required": ["location"]
+            }
+        },
+        {
+            "name": "get_time",
+            "description": "Get the current time in a given time zone",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timezone": {
+                        "type": "string",
+                        "description": "The IANA time zone name, e.g. America/Los_Angeles"
+                    }
+                },
+                "required": ["timezone"]
+            }
+        }
+    ],
+    messages=[
+        {
+            "role": "user",
+            "content": "What is the weather like right now in New York? Also what time is it there?"
+        }
+    ]
+)
+print(response)
+In this case, Claude will most likely try to use two separate tools, one at a time — get_weather and then get_time — in order to fully answer the user’s question. However, it will also occasionally output two tool_use blocks at once, particularly if they are not dependent on each other. You would need to execute each tool and return their results in separate tool_result blocks within a single user message.
+
+
+Missing information
+
+If the user’s prompt doesn’t include enough information to fill all the required parameters for a tool, Claude 3 Opus is much more likely to recognize that a parameter is missing and ask for it. Claude 3 Sonnet may ask, especially when prompted to think before outputting a tool request. But it may also do its best to infer a reasonable value.
+
+For example, using the get_weather tool above, if you ask Claude “What’s the weather?” without specifying a location, Claude, particularly Claude 3 Sonnet, may make a guess about tools inputs:
+
+JSON
+
+{
+  "type": "tool_use",
+  "id": "toolu_01A09q90qw90lq917835lq9",
+  "name": "get_weather",
+  "input": {"location": "New York, NY", "unit": "fahrenheit"}
+}
+This behavior is not guaranteed, especially for more ambiguous prompts and for models less intelligent than Claude 3 Opus. If Claude 3 Opus doesn’t have enough context to fill in the required parameters, it is far more likely respond with a clarifying question instead of making a tool call.
+
+
+Sequential tools
+
+Some tasks may require calling multiple tools in sequence, using the output of one tool as the input to another. In such a case, Claude will call one tool at a time. If prompted to call the tools all at once, Claude is likely to guess parameters for tools further downstream if they are dependent on tool results for tools further upstream.
+
+Here’s an example of using a get_location tool to get the user’s location, then passing that location to the get_weather tool:
+
+
+Shell
+
+Python
+
+response = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    tools=[
+        {
+            "name": "get_location",
+            "description": "Get the current user location based on their IP address. This tool has no parameters or arguments.",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The unit of temperature, either 'celsius' or 'fahrenheit'"
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    ],
+    messages=[{
+   		  "role": "user",
+    	  "content": "What's the weather like where I am?"
+    }]
+)
+In this case, Claude would first call the get_location tool to get the user’s location. After you return the location in a tool_result, Claude would then call get_weather with that location to get the final answer.
+
+The full conversation might look like:
+
+Role	Content
+User	What’s the weather like where I am?
+Assistant	<thinking>To answer this, I first need to determine the user’s location using the get_location tool. Then I can pass that location to the get_weather tool to find the current weather there.</thinking>[Tool use for get_location]
+User	[Tool result for get_location with matching id and result of San Francisco, CA]
+Assistant	[Tool use for get_weather with the following input]{ “location”: “San Francisco, CA”, “unit”: “fahrenheit” }
+User	[Tool result for get_weather with matching id and result of “59°F (15°C), mostly cloudy”]
+Assistant	Based on your current location in San Francisco, CA, the weather right now is 59°F (15°C) and mostly cloudy. It’s a fairly cool and overcast day in the city. You may want to bring a light jacket if you’re heading outside.
+This example demonstrates how Claude can chain together multiple tool calls to answer a question that requires gathering data from different sources. The key steps are:
+
+Claude first realizes it needs the user’s location to answer the weather question, so it calls the get_location tool.
+The user (i.e. the client code) executes the actual get_location function and returns the result “San Francisco, CA” in a tool_result block.
+With the location now known, Claude proceeds to call the get_weather tool, passing in “San Francisco, CA” as the location parameter (as well as a guessed unit parameter, as unit is not a required parameter).
+The user again executes the actual get_weather function with the provided arguments and returns the weather data in another tool_result block.
+Finally, Claude incorporates the weather data into a natural language response to the original question.
+
+Chain of thought tool use
+
+By default, Claude 3 Opus is prompted to think before it answers a tool use query to best determine whether a tool is necessary, which tool to use, and the appropriate parameters. Claude 3 Sonnet and Claude 3 Haiku are prompted to try to use tools as much as possible and are more likely to call an unnecessary tool or infer missing parameters. To prompt Sonnet or Haiku to better assess the user query before making tool calls, the following prompt can be used:
+
+Chain of thought prompt
+
+Answer the user's request using relevant tools (if they are available). Before calling a tool, do some analysis within \<thinking>\</thinking> tags. First, think about which of the provided tools is the relevant tool to answer the user's request. Second, go through each of the required parameters of the relevant tool and determine if the user has directly provided or given enough information to infer a value. When deciding if the parameter can be inferred, carefully consider all the context to see if it supports a specific value. If all of the required parameters are present or can be reasonably inferred, close the thinking tag and proceed with the tool call. BUT, if one of the values for a required parameter is missing, DO NOT invoke the function (not even with fillers for the missing params) and instead, ask the user to provide the missing parameters. DO NOT ask for more information on optional parameters if it is not provided.
