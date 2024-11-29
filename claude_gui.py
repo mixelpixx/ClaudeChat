@@ -3,7 +3,8 @@ import sys
 import time
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QLabel, QTextEdit, QFileDialog,
-                             QMessageBox, QDialog, QScrollArea, QFrame)
+                             QMessageBox, QDialog, QScrollArea, QFrame,
+                             QDesktopWidget)
 from PyQt6.QtGui import QPixmap, QColor, QPalette
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from claude_api import ClaudeAPI
@@ -11,6 +12,8 @@ from config import Config
 from qt_material import apply_stylesheet
 
 import logging
+import sys
+from PyQt6.QtWidgets import QApplication
 
 # Configure basic logging
 logging.basicConfig(
@@ -34,12 +37,14 @@ class MessageBubble(QFrame):
     def __init__(self, text, is_user=True):
         super().__init__()
         self.setObjectName("messageBubble")
+        self.setStyleSheet("color: #000000;")  # Set text color to black
         layout = QVBoxLayout()
         self.setLayout(layout)
 
         message = QLabel(text)
         message.setWordWrap(True)
         message.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        message.setStyleSheet("color: #000000;")  # Set text color to black
         layout.addWidget(message)
 
         if is_user:
@@ -47,6 +52,7 @@ class MessageBubble(QFrame):
                 QFrame#messageBubble {
                     background-color: #DCF8C6;
                     border-radius: 10px;
+                    color: #000000;
                     padding: 10px;
                     margin: 5px;
                 }
@@ -57,6 +63,7 @@ class MessageBubble(QFrame):
                 QFrame#messageBubble {
                     background-color: #FFFFFF;
                     border-radius: 10px;
+                    color: #000000;
                     padding: 10px;
                     margin: 5px;
                 }
@@ -175,6 +182,12 @@ class ClaudeChatApp(QWidget):
         vbox.setContentsMargins(20, 20, 20, 20)
         self.setLayout(vbox)
 
+        # Set initial window size to 1/4 of the screen
+        desktop = QDesktopWidget().screenGeometry()
+        width = int(desktop.width() * 0.25)
+        height = int(desktop.height() * 0.25)
+        self.resize(width, height)
+
     def send_message(self):
         message = self.message_input.text()
         logger.debug(f"Sending message: {message}")
@@ -238,7 +251,13 @@ class ClaudeChatApp(QWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     logger.info("Starting Claude Chat application")
+    
     try:
+        # Set the base style to light
+        app.setStyle("Fusion")
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
+        app.setPalette(palette)
         apply_stylesheet(app, theme='dark_teal.xml')
         ex = ClaudeChatApp()
         ex.show()
