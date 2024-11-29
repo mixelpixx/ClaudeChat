@@ -1,10 +1,12 @@
 # claude_gui.py
 import sys
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QLineEdit, QLabel, QTextEdit, QFileDialog)
+                             QPushButton, QLineEdit, QLabel, QTextEdit, QFileDialog,
+                             QMessageBox, QDialog)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from claude_api import ClaudeAPI
+from config import Config
 import logging
 
 # Configure basic logging
@@ -14,15 +16,60 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+class APIKeyDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.config = Config()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('API Key Configuration')
+        layout = QVBoxLayout()
+
+        # API Key input
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setText(self.config.get_api_key() or '')
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(QLabel('Enter your Anthropic API Key:'))
+        layout.addWidget(self.api_key_input)
+
+        # Buttons
+        buttons = QHBoxLayout()
+        save_button = QPushButton('Save')
+        save_button.clicked.connect(self.save_api_key)
+        cancel_button = QPushButton('Cancel')
+        cancel_button.clicked.connect(self.reject)
+        buttons.addWidget(save_button)
+        buttons.addWidget(cancel_button)
+        layout.addLayout(buttons)
+
+        self.setLayout(layout)
+
+    def save_api_key(self):
+        api_key = self.api_key_input.text().strip()
+        if api_key:
+            self.config.set_api_key(api_key)
+            self.accept()
+        else:
+            QMessageBox.warning(self, 'Error', 'API Key cannot be empty')
+
 class ClaudeChatApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.config = Config()
+        
+        # Check for API key
+        if not self.config.get_api_key():
+            if not self.show_api_key_dialog():
+                sys.exit(1)
+                
         logger.info("Initializing Claude Chat GUI")
         try:
             self.api = ClaudeAPI()
             self.initUI()
         except Exception as e:
             logger.error(f"Failed to initialize application: {str(e)}")
+            self.show_error_dialog(str(e))
             raise
 
     def initUI(self):
@@ -90,6 +137,13 @@ class ClaudeChatApp(QWidget):
 
     def update_chat_display(self, text):
         self.chat_display.append(text)  # Correct method to add text
+
+    def show_api_key_dialog(self):
+        dialog = APIKeyDialog(self)
+        return dialog.exec() == QDialog.DialogCode.Accepted
+
+    def show_error_dialog(self, message):
+        QMessageBox.critical(self, 'Error', message)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -5,6 +5,7 @@ import httpx
 import json
 import os
 import logging
+from config import Config
 
 # Configure basic logging
 logging.basicConfig(
@@ -16,10 +17,11 @@ logger = logging.getLogger(__name__)
 class ClaudeAPI:
     def __init__(self):
         logger.info("Initializing ClaudeAPI")
-        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
+        self.config = Config()
+        self.api_key = self.config.get_api_key()
         if not self.api_key:
-            logger.error("ANTHROPIC_API_KEY environment variable not set")
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
+            logger.error("No API key found in config or environment")
+            raise ValueError("No API key found. Please set your API key in the settings.")
         self.client = anthropic.Anthropic(api_key=self.api_key)
         self.conversation_history = []
 
