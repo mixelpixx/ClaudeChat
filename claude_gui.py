@@ -3,9 +3,8 @@ import sys
 import time
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QLabel, QTextEdit, QFileDialog,
-                             QMessageBox, QDialog, QScrollArea, QFrame,
-                             QDesktopWidget)
-from PyQt6.QtGui import QPixmap, QColor, QPalette
+                             QMessageBox, QDialog, QScrollArea, QFrame)
+from PyQt6.QtGui import QPixmap, QColor, QPalette, QScreen
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from claude_api import ClaudeAPI
 from config import Config
@@ -183,9 +182,10 @@ class ClaudeChatApp(QWidget):
         self.setLayout(vbox)
 
         # Set initial window size to 1/4 of the screen
-        desktop = QDesktopWidget().screenGeometry()
-        width = int(desktop.width() * 0.25)
-        height = int(desktop.height() * 0.25)
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        width = int(screen_geometry.width() * 0.25)
+        height = int(screen_geometry.height() * 0.25)
         self.resize(width, height)
 
     def send_message(self):
