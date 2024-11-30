@@ -16,21 +16,21 @@ logger = logging.getLogger(__name__)
 
 class Config:
     def __init__(self):
-        self.config_file = Path.home() / '.claude_chat' / 'config.json'
+        self.config_file = os.path.expanduser('~/.claude_chat/config.json')
         self.config = self.load_config()
         
     def load_config(self):
         """Load configuration from file or environment"""
         try:
-            if self.config_file.exists():
+            if os.path.exists(self.config_file):
                 with open(self.config_file) as f:
                     return json.load(f)
             else:
                 # Create default config
-                self.config_file.parent.mkdir(parents=True, exist_ok=True)
+                os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
                 default_config = {
                     "api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": "claude-2.0",
                     "max_tokens": 1024,
                 }
                 self.save_config(default_config)
@@ -42,7 +42,7 @@ class Config:
     def save_config(self, config):
         """Save configuration to file"""
         try:
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
             with open(self.config_file, 'w') as f:
                 json.dump(config, f, indent=4)
             return True

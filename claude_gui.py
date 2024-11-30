@@ -8,7 +8,7 @@ from PyQt6.QtGui import QPixmap, QColor, QPalette, QScreen
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from claude_api import ClaudeAPI
 from config import Config
-from qt_material import apply_stylesheet
+# from qt_material import apply_stylesheet  # Comment this out if not using qt_material
 
 import logging
 import sys
@@ -130,13 +130,13 @@ class ClaudeChatApp(QWidget):
         logger.info("Initializing Claude Chat GUI")
         try:
             self.api = ClaudeAPI()
-            self.initUI()
+            self.init_ui()
         except Exception as e:
             logger.error(f"Failed to initialize application: {str(e)}")
             self.show_error_dialog(str(e))
             raise
 
-    def initUI(self):
+    def init_ui(self):
         self.setWindowTitle("Claude Chat")
         self.setMinimumSize(600, 400)
 
@@ -144,7 +144,7 @@ class ClaudeChatApp(QWidget):
         vbox.setSpacing(10)
 
         self.chat_display = ScrollableMessageArea()
-        vbox.addWidget(self.chat_display, 1)
+        vbox.addWidget(self.chat_display)
 
         hbox = QHBoxLayout()
         hbox.setSpacing(10)
@@ -152,24 +152,15 @@ class ClaudeChatApp(QWidget):
         self.message_input = QLineEdit()
         self.message_input.setPlaceholderText("Type your message here...")
         hbox.addWidget(self.message_input)
-
-        send_button = QPushButton("Send")
-        send_button.clicked.connect(self.send_message)
-        send_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 5px;
-            }
+        
             QPushButton:hover {
                 background-color: #45a049;
             }
-        """)
         hbox.addWidget(send_button)
 
         upload_button = QPushButton("Upload Image")
+        send_button = QPushButton("Send")
+        send_button.clicked.connect(self.send_message)
         upload_button.clicked.connect(self.upload_image)
         hbox.addWidget(upload_button)
 
@@ -258,7 +249,7 @@ if __name__ == "__main__":
         palette = QPalette()
         palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
         app.setPalette(palette)
-        apply_stylesheet(app, theme='dark_teal.xml')
+        # apply_stylesheet(app, theme='dark_teal.xml')  # Comment this out if not using qt_material
         ex = ClaudeChatApp()
         ex.show()
         logger.info("Application window displayed")
