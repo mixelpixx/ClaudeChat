@@ -31,6 +31,8 @@ class Config:
                 default_config = {
                     "api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
                     "model": "claude-3-5-sonnet-20241022",
+                    "system_prompt": "You are Claude, an AI assistant. Be helpful and concise.",
+                    "whitelist": {},
                     "max_tokens": 1024,
                 }
                 self.save_config(default_config)
@@ -54,6 +56,18 @@ class Config:
         """Get API key from config or environment"""
         return self.config.get('api_key') or os.environ.get("ANTHROPIC_API_KEY")
     
+    def get_model(self):
+        return self.config.get('model', "claude-3-5-sonnet-20241022")
+
+    def get_max_tokens(self):
+        return self.config.get('max_tokens', 1024)
+
+    def get_system_prompt(self):
+        return self.config.get('system_prompt', "You are Claude, an AI assistant. Be helpful and concise.")
+
+    def get_whitelist(self):
+        return self.config.get('whitelist', {})
+
     def set_api_key(self, api_key):
         """Set API key in config"""
         self.config['api_key'] = api_key

@@ -1,4 +1,3 @@
-# secure_tools.py
 import subprocess
 import os
 import json
