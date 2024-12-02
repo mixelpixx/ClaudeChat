@@ -102,7 +102,8 @@ class ToolManager:
             command=command
         )
 
-        if not self.security.check_operation(self.parent_widget, operation):
+        reply = self.security.check_operation(self.parent_widget, operation)
+        if not reply:
             return False, "Operation not authorized"
 
         try:

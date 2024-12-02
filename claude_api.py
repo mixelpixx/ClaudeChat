@@ -1,5 +1,6 @@
 import logging
 import os
+import base64
 from anthropic import Anthropic
 from secure_tools import ToolManager, OperationType
 from config import Config
@@ -26,18 +27,31 @@ class ClaudeAPI:
     def send_message(self, message, image_path=None):
         logger.info("Sending message to Claude")
         try:
+            # Prepare the message content
+            message_content = message
             if image_path:
-                # Handle image upload logic here
-                pass
-            else:
-                response = self.client.messages.create(
-                    model=self.config.get_model(),
-                    max_tokens=self.config.get_max_tokens(),
-                    messages=self.conversation_history + [{"role": "user", "content": message}],
-                    system=self.config.get_system_prompt(),
-                    tools=self.define_tools(),
-                    tool_choice={"type": "auto"}
-                )
+                with open(image_path, "rb") as img:
+                    image_data = base64.b64encode(img.read()).decode()
+                    message_content = [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": image_data
+                            }
+                        },
+                        {"type": "text", "text": message}
+                    ]
+
+            response = self.client.messages.create(
+                model=self.config.get_model(),
+                max_tokens=self.config.get_max_tokens(),
+                messages=self.conversation_history + [{"role": "user", "content": message_content}],
+                system=self.config.get_system_prompt(),
+                tools=self.define_tools(),
+                tool_choice={"type": "auto"}
+            )
             
             response_text = ""
             for content in response.content:
@@ -47,7 +61,7 @@ class ClaudeAPI:
                     tool_result = self.handle_tool_use(content)
                     response_text += f"\nTool use result: {tool_result}\n"
 
-            self.conversation_history.append({"role": "user", "content": message})
+            self.conversation_history.append({"role": "user", "content": message_content})
             self.conversation_history.append({"role": "assistant", "content": response_text})
             return response_text
             
@@ -57,15 +71,22 @@ class ClaudeAPI:
             
     def handle_tool_use(self, tool_use_content):
         """Handle tool use requests from Claude"""
-        tool_name = tool_use_content.get('name')
-        tool_input = tool_use_content.get('input', {})
+        tool_name = tool_use_content.name
+        tool_input = tool_use_content.input
+        tool_id = tool_use_content.id
         
         if tool_name == "execute_command":
             command = tool_input.get('command')
             if not command:
                 return "Error: No command provided"
-            return self.tools.execute_cmd(command)
-            
+            success, result = self.tools.execute_cmd(command)
+            return {
+                "type": "tool_result",
+                "tool_use_id": tool_id,
+                "content": result,
+                "is_error": not success
+            }
+
         elif tool_name == "read_file":
             path = tool_input.get('path')
             if not path:
@@ -129,10 +150,7 @@ class ClaudeAPI:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "The command to execute"
-                        }
+                        "command": {"type": "string", "description": "The command to execute. Must be a valid system command."},
                     },
                     "required": ["command"]
                 }
