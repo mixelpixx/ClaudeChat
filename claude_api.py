@@ -1,7 +1,7 @@
 import logging
 import os
 from anthropic import Anthropic
-from secure_tools import ToolManager
+from secure_tools import ToolManager, OperationType
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class ClaudeAPI:
             
         self.client = Anthropic(api_key=api_key, max_retries=3)
         self.conversation_history = []
-        self.tools = None
+        self.tools = ToolManager()
         
     def send_message(self, message, image_path=None):
         logger.info("Sending message to Claude")
@@ -49,9 +49,6 @@ class ClaudeAPI:
             logger.error(f"Error sending message: {str(e)}")
             raise
             
-    def clear_conversation(self):
-        self.conversation_history = []
-
     def handle_tool_use(self, tool_use_content):
         """Handle tool use requests from Claude"""
         tool_name = tool_use_content.tool_name
@@ -59,27 +56,27 @@ class ClaudeAPI:
 
         if tool_name == "execute_command":
             success, result = self.tools.execute_cmd(tool_input)
-            return result
         elif tool_name == "read_file":
             success, result = self.tools.file_operation(OperationType.FILE_READ, tool_input)
-            return result
         elif tool_name == "write_file":
-            success, result = self.tools.file_operation(OperationType.FILE_WRITE, tool_input, tool_use_content.tool_output)
-            return result
+            success, result = self.tools.file_operation(OperationType.FILE_WRITE, tool_input['path'], tool_input['content'])
         elif tool_name == "create_file":
             success, result = self.tools.file_operation(OperationType.FILE_CREATE, tool_input)
-            return result
         elif tool_name == "edit_file":
-            success, result = self.tools.file_operation(OperationType.FILE_EDIT, tool_input, tool_use_content.tool_output)
-            return result
+            success, result = self.tools.file_operation(OperationType.FILE_EDIT, tool_input['path'], tool_input['content'])
         elif tool_name == "read_directory":
             success, result = self.tools.dir_operation(OperationType.DIR_READ, tool_input)
-            return result
         elif tool_name == "create_directory":
             success, result = self.tools.dir_operation(OperationType.DIR_CREATE, tool_input)
-            return result
         elif tool_name == "edit_directory":
             success, result = self.tools.dir_operation(OperationType.DIR_EDIT, tool_input)
-            return result
         else:
             return f"Unsupported tool: {tool_name}"
+
+        if success:
+            return result
+        else:
+            return f"Error executing {tool_name}: {result}"
+
+    def clear_conversation(self):
+        self.conversation_history = []
