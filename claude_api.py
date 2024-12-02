@@ -16,7 +16,7 @@ class ClaudeAPI:
             if not api_key:
                 raise ValueError("API key not found")
             
-            self.client = Anthropic(api_key=api_key, max_retries=3)
+            self.client = Anthropic(api_key=api_key)
             self.conversation_history = []
             self.tools = None  # Will be set by GUI
         except Exception as e:
@@ -33,8 +33,10 @@ class ClaudeAPI:
                 response = self.client.messages.create(
                     model=self.config.get_model(),
                     max_tokens=self.config.get_max_tokens(),
-                    messages=[{"role": "user", "content": message}],
-                    system=self.config.get_system_prompt()
+                    messages=self.conversation_history + [{"role": "user", "content": message}],
+                    system=self.config.get_system_prompt(),
+                    tools=self.define_tools(),
+                    tool_choice={"type": "auto"}
                 )
             
             response_text = ""
@@ -55,32 +57,61 @@ class ClaudeAPI:
             
     def handle_tool_use(self, tool_use_content):
         """Handle tool use requests from Claude"""
-        tool_name = tool_use_content.tool_name
-        tool_input = tool_use_content.tool_input
-
+        tool_name = tool_use_content.get('name')
+        tool_input = tool_use_content.get('input', {})
+        
         if tool_name == "execute_command":
-            success, result = self.tools.execute_cmd(tool_input)
+            command = tool_input.get('command')
+            if not command:
+                return "Error: No command provided"
+            return self.tools.execute_cmd(command)
+            
         elif tool_name == "read_file":
-            success, result = self.tools.file_operation(OperationType.FILE_READ, tool_input)
+            path = tool_input.get('path')
+            if not path:
+                return "Error: No file path provided"
+            return self.tools.file_operation(OperationType.FILE_READ, path)
+            
         elif tool_name == "write_file":
-            success, result = self.tools.file_operation(OperationType.FILE_WRITE, tool_input['path'], tool_input['content'])
+            path = tool_input.get('path')
+            content = tool_input.get('content')
+            if not path or not content:
+                return "Error: No file path or content provided"
+            return self.tools.file_operation(OperationType.FILE_WRITE, path, content)
+            
         elif tool_name == "create_file":
-            success, result = self.tools.file_operation(OperationType.FILE_CREATE, tool_input)
+            path = tool_input.get('path')
+            if not path:
+                return "Error: No file path provided"
+            return self.tools.file_operation(OperationType.FILE_CREATE, path)
+            
         elif tool_name == "edit_file":
-            success, result = self.tools.file_operation(OperationType.FILE_EDIT, tool_input['path'], tool_input['content'])
+            path = tool_input.get('path')
+            content = tool_input.get('content')
+            if not path or not content:
+                return "Error: No file path or content provided"
+            return self.tools.file_operation(OperationType.FILE_EDIT, path, content)
+            
         elif tool_name == "read_directory":
-            success, result = self.tools.dir_operation(OperationType.DIR_READ, tool_input)
+            path = tool_input.get('path')
+            if not path:
+                return "Error: No directory path provided"
+            return self.tools.dir_operation(OperationType.DIR_READ, path)
+            
         elif tool_name == "create_directory":
-            success, result = self.tools.dir_operation(OperationType.DIR_CREATE, tool_input)
+            path = tool_input.get('path')
+            if not path:
+                return "Error: No directory path provided"
+            return self.tools.dir_operation(OperationType.DIR_CREATE, path)
+            
         elif tool_name == "edit_directory":
-            success, result = self.tools.dir_operation(OperationType.DIR_EDIT, tool_input)
+            path = tool_input.get('path')
+            if not path:
+                return "Error: No directory path provided"
+            return self.tools.dir_operation(OperationType.DIR_EDIT, path)
+            
         else:
             return f"Unsupported tool: {tool_name}"
-
-        if success:
-            return result
-        else:
-            return f"Error executing {tool_name}: {result}"
 
     def clear_conversation(self):
         self.conversation_history = []
@@ -88,3 +119,128 @@ class ClaudeAPI:
     def set_tool_manager(self, tool_manager):
         """Set the tool manager instance"""
         self.tools = tool_manager
+
+    def define_tools(self):
+        """Define available tools for Claude to use"""
+        return [
+            {
+                "name": "execute_command",
+                "description": "Execute a command in the command prompt or terminal. This tool should be used when needing to run system commands.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The command to execute"
+                        }
+                    },
+                    "required": ["command"]
+                }
+            },
+            {
+                "name": "read_file",
+                "description": "Read the contents of a file at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The file path to read from"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "write_file",
+                "description": "Write to a file at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The file path to write to"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The content to write to the file"
+                        }
+                    },
+                    "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "create_file",
+                "description": "Create a new file at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The file path to create"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "edit_file",
+                "description": "Edit a file at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The file path to edit"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The new content to write to the file"
+                        }
+                    },
+                    "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "read_directory",
+                "description": "Read the contents of a directory at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The directory path to read from"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "create_directory",
+                "description": "Create a new directory at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The directory path to create"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "edit_directory",
+                "description": "Edit a directory at the specified path",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The directory path to edit"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            }
+        ]
