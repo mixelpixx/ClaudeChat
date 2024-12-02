@@ -9,16 +9,20 @@ logger = logging.getLogger(__name__)
 class ClaudeAPI:
     def __init__(self):
         logger.info("Initializing ClaudeAPI")
-        self.config = Config()
-        api_key = self.config.get_api_key()
-        
-        if not api_key:
-            raise ValueError("API key not found")
+        try:
+            self.config = Config()
+            api_key = self.config.get_api_key()
             
-        self.client = Anthropic(api_key=api_key, max_retries=3)
-        self.conversation_history = []
-        self.tools = ToolManager()
-        
+            if not api_key:
+                raise ValueError("API key not found")
+            
+            self.client = Anthropic(api_key=api_key, max_retries=3)
+            self.conversation_history = []
+            self.tools = None  # Will be set by GUI
+        except Exception as e:
+            logger.error(f"Error initializing ClaudeAPI: {e}")
+            raise
+
     def send_message(self, message, image_path=None):
         logger.info("Sending message to Claude")
         try:
@@ -80,3 +84,7 @@ class ClaudeAPI:
 
     def clear_conversation(self):
         self.conversation_history = []
+
+    def set_tool_manager(self, tool_manager):
+        """Set the tool manager instance"""
+        self.tools = tool_manager

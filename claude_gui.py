@@ -64,16 +64,17 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(800, 600)
         
         try:
-            self.claude_api = ClaudeAPI()
-            # Initialize tool manager and connect to API
+            # Initialize tool manager first
             self.tool_manager = ToolManager(self)
-            self.claude_api.tools = self.tool_manager
+            self.claude_api = ClaudeAPI()
+            # Connect tool manager to API
+            self.claude_api.set_tool_manager(self.tool_manager)
         except ValueError:
             self.get_api_key()
             try:
                 self.claude_api = ClaudeAPI()
                 self.tool_manager = ToolManager(self)
-                self.claude_api.tools = self.tool_manager
+                self.claude_api.set_tool_manager(self.tool_manager)
             except ValueError as e:
                 QMessageBox.critical(self, "Error", str(e))
                 sys.exit(1)
