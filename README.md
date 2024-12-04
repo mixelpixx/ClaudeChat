@@ -4,16 +4,9 @@
 ![PyQt6](https://img.shields.io/badge/PyQt-6.0%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-A powerful desktop application that provides a graphical interface for interacting with Claude AI, featuring secure tool execution capabilities and image handling support.
+A desktop application that provides a graphical interface for interacting with Claude AI, featuring tool calling capabilities and a sophisticated command execution system.
 
 ## Features
 
 
-## Installation
-
-### Prerequisites
-
-
-### Steps
-
-1. Clone the repository:
+## Project Structure
