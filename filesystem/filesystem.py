@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import os
 from pathlib import Path
+import sys
 from typing import List, Dict, Any, Optional
 import shutil
 from datetime import datetime
@@ -225,25 +226,40 @@ class MCPServer:
         except Exception as e:
             return {"content": [{"type": "text", "text": f"Error: {str(e)}"}], "isError": True}
 
-# Flask routes
-@app.route('/list_tools', methods=['GET'])
+def create_server(allowed_directories):
+    return MCPServer(allowed_directories)
+
+@app.route('/mcp', methods=['POST'])
+def mcp_handler():
+    data = request.json
+    if data.get('type') == 'list_tools_request':
+        return list_tools()
+    elif data.get('type') == 'call_tool_request':
+        return call_tool(data)
+    else:
+        return jsonify({"error": "Invalid request type"}), 400
+
 def list_tools():
     tools = server.tools
     return jsonify({
         "tools": [
             {
                 "name": tool["name"],
-                "description": tool["description"]
+                "description": tool["description"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
             } for tool in tools.values()
         ]
     })
 
-@app.route('/call_tool', methods=['POST'])
-def call_tool():
+def call_tool(data):
     try:
-        data = request.json
-        tool_name = data.get('name')
-        arguments = data.get('arguments', {})
+        params = data.get('params', {})
+        tool_name = params.get('name')
+        arguments = params.get('arguments', {})
         
         if tool_name not in server.tools:
             return jsonify({
@@ -260,12 +276,17 @@ def call_tool():
             "isError": True
         }), 500
 
-if __name__ == '__main__':
-    import sys
+def main():
     if len(sys.argv) < 2:
-        print("Usage: python mcp_server.py <allowed-directory> [additional-directories...]")
+        print("Usage: python filesystem.py <allowed-directory> [additional-directories...]")
         sys.exit(1)
     
     allowed_directories = sys.argv[1:]
+    global server
     server = create_server(allowed_directories)
-    app.run(debug=True)
+    print("Secure MCP Filesystem Server running on http://127.0.0.1:5000")
+    print("Allowed directories:", allowed_directories)
+    app.run(debug=False)
+
+if __name__ == '__main__':
+    main()
