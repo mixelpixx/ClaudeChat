@@ -1,6 +1,7 @@
 import logging
 import os
 import base64
+import requests
 from anthropic import Anthropic
 from secure_tools import ToolManager, OperationType
 from config import Config
@@ -70,11 +71,82 @@ class ClaudeAPI:
             raise
             
     def handle_tool_use(self, tool_use_content):
-        """Handle tool use requests from Claude"""
+        """Handle tool use requests from Claude with enhanced tool support"""
         tool_name = tool_use_content.name
         tool_input = tool_use_content.input
         tool_id = tool_use_content.id
         
+        if tool_name == "execute_command":
+            command = tool_input.get('command')
+            working_dir = tool_input.get('working_directory', os.getcwd())
+            
+            if not command:
+                return "Error: No command provided"
+            
+            try:
+                response = requests.post('http://localhost:5000/execute', json={
+                    'command': command,
+                    'working_directory': working_dir
+                })
+                
+                if response.status_code == 202:  # Approval required
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": "Command requires approval: " + command,
+                        "is_error": True
+                    }
+                
+                result = response.json()
+                if result.get('status') == 'started':
+                    pid = result.get('pid')
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": f"Command started with PID: {pid}"
+                    }
+            except Exception as e:
+                return {
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": f"Error executing command: {str(e)}",
+                    "is_error": True
+                }
+        
+        elif tool_name == "filesystem_operation":
+            operation = tool_input.get('operation')
+            path = tool_input.get('path')
+            content = tool_input.get('content')
+            pattern = tool_input.get('pattern')
+            
+            try:
+                response = requests.post('http://localhost:5000/mcp', json={
+                    'type': 'call_tool_request',
+                    'params': {
+                        'name': operation,
+                        'arguments': {
+                            'path': path,
+                            'content': content,
+                            'pattern': pattern
+                        }
+                    }
+                })
+                
+                result = response.json()
+                return {
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": result.get('content', 'No result')
+                }
+            except Exception as e:
+                return {
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": f"Error performing filesystem operation: {str(e)}",
+                    "is_error": True
+                }
+        
+        # Existing tool handling logic remains the same
         if tool_name == "execute_command":
             command = tool_input.get('command')
             if not command:
@@ -146,11 +218,50 @@ class ClaudeAPI:
         return [
             {
                 "name": "execute_command",
-                "description": "Execute a command in the command prompt or terminal. This tool should be used when needing to run system commands.",
+                "description": "Execute a command in the command prompt or terminal using the cmd-tool service. This tool allows running system commands with controlled execution and output retrieval.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "command": {"type": "string", "description": "The command to execute. Must be a valid system command."},
+                        "command": {
+                            "type": "string", 
+                            "description": "The command to execute. Must be a valid system command."
+                        },
+                        "working_directory": {
+                            "type": "string",
+                            "description": "Optional working directory for command execution. Defaults to current directory if not specified."
+                        }
+                    },
+                    "required": ["command"]
+                }
+            },
+            {
+                "name": "filesystem_operation",
+                "description": "Perform various file system operations using the secure filesystem service. Supports reading, writing, creating, and searching files and directories with strict security controls.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["read_file", "write_file", "create_directory", "list_directory", "search_files", "get_file_info"],
+                            "description": "The type of filesystem operation to perform."
+                        },
+                        "path": {"type": "string", "description": "The file or directory path for the operation"},
+                        "content": {"type": "string", "description": "Optional content for write operations"},
+                        "pattern": {"type": "string", "description": "Optional search pattern for search operations"}
+                    },
+                    "required": ["operation", "path"]
+                }
+            },
+            {
+                "name": "execute_command",
+                "description": "Execute a command in the command prompt or terminal",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The command to execute. Must be a valid system command."
+                        }
                     },
                     "required": ["command"]
                 }
