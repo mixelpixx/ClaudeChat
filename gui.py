@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QMenuBar, QMenu, QToolBar, QStatusBar,
     QMessageBox, QFileDialog, QDialog, QLabel, QLineEdit, QPushButton
 )
-from PyQt6.QtGui import QAction, QIcon, QTextCharFormat, QColor, QSyntaxHighlighter
+from PyQt6.QtGui import QAction, QIcon, QTextCharFormat, QColor, QSyntaxHighlighter, QFont
 from PyQt6.QtCore import Qt, QRegularExpression
 
 from claude_api import ClaudeAPI
