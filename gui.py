@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QMenuBar, QMenu, QToolBar, QStatusBar,
     QMessageBox, QFileDialog, QDialog, QLabel, QLineEdit, QPushButton
 )
-from PyQt6.QtGui import QAction, QIcon, QTextCharFormat, QColor, QSyntaxHighlighter, QFont
+from PyQt6.QtGui import QAction, QIcon, QTextCharFormat, QColor, QSyntaxHighlighter, QFont, QKeySequence
 from PyQt6.QtCore import Qt, QRegularExpression
 
 from claude_api import ClaudeAPI
@@ -87,12 +87,7 @@ class MainWindow(QMainWindow):
         # Initialize core components
         self.claude_api = ClaudeAPI()
         self.config = Config()
-        
-        # Setup main UI
         self.setup_ui()
-        self.setup_menus()
-        self.setup_toolbar()
-        self.setup_statusbar()
 
     def setup_ui(self):
         # Central widget and main layout
@@ -106,6 +101,7 @@ class MainWindow(QMainWindow):
         # Central area: Conversation and Tabs
         central_splitter = QSplitter(Qt.Orientation.Vertical)
         conversation_view = ConversationView()
+        self.conversation_view = conversation_view  # Store reference
         
         # Tabs for additional functionality
         tabs = QTabWidget()
@@ -114,6 +110,30 @@ class MainWindow(QMainWindow):
         
         central_splitter.addWidget(conversation_view)
         central_splitter.addWidget(tabs)
+        
+        # Add input area at the bottom
+        input_widget = QWidget()
+        input_layout = QHBoxLayout(input_widget)
+        
+        # Message input
+        self.message_input = QTextEdit()
+        self.message_input.setMaximumHeight(100)
+        self.message_input.setPlaceholderText("Type your message here... (Enter to send, Shift+Enter for new line)")
+        
+        # Attach image button
+        attach_button = QPushButton("Attach Image")
+        attach_button.clicked.connect(self.attach_image)
+        
+        # Send button
+        send_button = QPushButton("Send")
+        send_button.clicked.connect(self.send_message)
+        
+        input_layout.addWidget(self.message_input)
+        input_layout.addWidget(attach_button)
+        input_layout.addWidget(send_button)
+        
+        # Add input widget to central splitter
+        central_splitter.addWidget(input_widget)
         
         # Right sidebar: Filesystem Browser
         filesystem_browser = FileSystemBrowser()
@@ -153,6 +173,45 @@ class MainWindow(QMainWindow):
     def setup_statusbar(self):
         statusbar = self.statusBar()
         statusbar.showMessage("Ready")
+        
+    def keyPressEvent(self, event):
+        """Handle key press events for the main window"""
+        if self.message_input.hasFocus():
+            if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                    # Shift+Enter: insert newline
+                    self.message_input.insertPlainText('\n')
+                else:
+                    # Enter: send message
+                    self.send_message()
+                event.accept()
+                return
+        super().keyPressEvent(event)
+        
+    def send_message(self):
+        """Send the current message to Claude"""
+        message = self.message_input.toPlainText().strip()
+        if message:
+            # Add user message to conversation
+            self.conversation_view.append(f"You: {message}")
+            
+            # Get Claude's response
+            try:
+                response = self.claude_api.send_message(message)
+                self.conversation_view.append(f"Claude: {response}")
+            except Exception as e:
+                self.conversation_view.append(f"Error: {str(e)}")
+            
+            # Clear input
+            self.message_input.clear()
+            
+    def attach_image(self):
+        """Open file dialog to attach an image"""
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Image", "", 
+            "Images (*.png *.jpg *.jpeg *.gif *.webp)")
+        if file_path:
+            self.image_path = file_path
+            self.statusBar().showMessage(f"Image attached: {os.path.basename(file_path)}")
 
 def main():
     app = QApplication(sys.argv)
