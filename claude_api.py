@@ -78,7 +78,7 @@ class ClaudeAPI:
         
         if tool_name == "execute_command":
             command = tool_input.get('command')
-            working_dir = tool_input.get('working_directory', os.getcwd())
+            working_directory = tool_input.get('working_directory', os.getcwd())
             
             if not command:
                 return "Error: No command provided"
@@ -86,7 +86,7 @@ class ClaudeAPI:
             try:
                 response = requests.post('http://localhost:5000/execute', json={
                     'command': command,
-                    'working_directory': working_dir
+                    'working_directory': working_directory
                 })
                 
                 if response.status_code == 202:  # Approval required
@@ -146,63 +146,6 @@ class ClaudeAPI:
                     "is_error": True
                 }
         
-        # Existing tool handling logic remains the same
-        if tool_name == "execute_command":
-            command = tool_input.get('command')
-            if not command:
-                return "Error: No command provided"
-            success, result = self.tools.execute_cmd(command)
-            return {
-                "type": "tool_result",
-                "tool_use_id": tool_id,
-                "content": result,
-                "is_error": not success
-            }
-
-        elif tool_name == "read_file":
-            path = tool_input.get('path')
-            if not path:
-                return "Error: No file path provided"
-            return self.tools.file_operation(OperationType.FILE_READ, path)
-            
-        elif tool_name == "write_file":
-            path = tool_input.get('path')
-            content = tool_input.get('content')
-            if not path or not content:
-                return "Error: No file path or content provided"
-            return self.tools.file_operation(OperationType.FILE_WRITE, path, content)
-            
-        elif tool_name == "create_file":
-            path = tool_input.get('path')
-            if not path:
-                return "Error: No file path provided"
-            return self.tools.file_operation(OperationType.FILE_CREATE, path)
-            
-        elif tool_name == "edit_file":
-            path = tool_input.get('path')
-            content = tool_input.get('content')
-            if not path or not content:
-                return "Error: No file path or content provided"
-            return self.tools.file_operation(OperationType.FILE_EDIT, path, content)
-            
-        elif tool_name == "read_directory":
-            path = tool_input.get('path')
-            if not path:
-                return "Error: No directory path provided"
-            return self.tools.dir_operation(OperationType.DIR_READ, path)
-            
-        elif tool_name == "create_directory":
-            path = tool_input.get('path')
-            if not path:
-                return "Error: No directory path provided"
-            return self.tools.dir_operation(OperationType.DIR_CREATE, path)
-            
-        elif tool_name == "edit_directory":
-            path = tool_input.get('path')
-            if not path:
-                return "Error: No directory path provided"
-            return self.tools.dir_operation(OperationType.DIR_EDIT, path)
-            
         else:
             return f"Unsupported tool: {tool_name}"
 
@@ -250,126 +193,6 @@ class ClaudeAPI:
                         "pattern": {"type": "string", "description": "Optional search pattern for search operations"}
                     },
                     "required": ["operation", "path"]
-                }
-            },
-            {
-                "name": "execute_command",
-                "description": "Execute a command in the command prompt or terminal",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "The command to execute. Must be a valid system command."
-                        }
-                    },
-                    "required": ["command"]
-                }
-            },
-            {
-                "name": "read_file",
-                "description": "Read the contents of a file at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The file path to read from"
-                        }
-                    },
-                    "required": ["path"]
-                }
-            },
-            {
-                "name": "write_file",
-                "description": "Write to a file at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The file path to write to"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "The content to write to the file"
-                        }
-                    },
-                    "required": ["path", "content"]
-                }
-            },
-            {
-                "name": "create_file",
-                "description": "Create a new file at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The file path to create"
-                        }
-                    },
-                    "required": ["path"]
-                }
-            },
-            {
-                "name": "edit_file",
-                "description": "Edit a file at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The file path to edit"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "The new content to write to the file"
-                        }
-                    },
-                    "required": ["path", "content"]
-                }
-            },
-            {
-                "name": "read_directory",
-                "description": "Read the contents of a directory at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The directory path to read from"
-                        }
-                    },
-                    "required": ["path"]
-                }
-            },
-            {
-                "name": "create_directory",
-                "description": "Create a new directory at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The directory path to create"
-                        }
-                    },
-                    "required": ["path"]
-                }
-            },
-            {
-                "name": "edit_directory",
-                "description": "Edit a directory at the specified path",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "The directory path to edit"
-                        }
-                    },
-                    "required": ["path"]
                 }
             }
         ]
