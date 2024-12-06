@@ -13,6 +13,7 @@ class ClaudeAPI:
     def __init__(self):
         logger.info("Initializing ClaudeAPI")
         try:
+            self.max_iterations = 10  # Maximum number of conversation turns to prevent infinite loops
             self.config = Config()
             api_key = self.config.get_api_key()
             
@@ -105,8 +106,12 @@ class ClaudeAPI:
             # Initialize variables for the conversation loop
             continue_processing = True
             current_response = ""
+            iteration_count = 0
             
-            while continue_processing:
+            while continue_processing and iteration_count < self.max_iterations:
+                iteration_count += 1
+                logger.debug(f"Conversation iteration {iteration_count}")
+
                 # Get the response from Claude
                 response = self.client.messages.create(
                     model=self.config.get_model(),
@@ -121,31 +126,30 @@ class ClaudeAPI:
                 response_text = ""
                 tool_results = []
                 continue_processing = False  # Reset for each iteration
-                
+
                 for content in response.content:
                     if content.type == "text":
                         response_text += content.text
                     elif content.type == "tool_use":
                         result = self.handle_tool_use(content)
                         
-                        if isinstance(result, dict):
-                            if result.get('is_error'):
-                                # Add error to response and stop processing
-                                response_text += f"\nTool error: {result.get('content')}\n"
-                                continue_processing = False
-                            elif result.get('success'):
-                                # Add tool result to conversation history as a system message
-                                tool_result_msg = {
-                                    "role": "system",
-                                    "content": f"Tool execution result: {result.get('content')}"
-                                }
-                                self.conversation_history.append(tool_result_msg)
-                                
-                                # Set flag to continue processing if the response indicates more steps
-                                if "next step" in response_text.lower() or "continue" in response_text.lower():
-                                    continue_processing = True
-                                    message_content = "Continue with the next step based on the previous result."
-                
+                        # Handle tool results
+                        if result:
+                            tool_results.append(result)
+                            if isinstance(result, dict):
+                                if result.get('is_error'):
+                                    response_text += f"\nTool error: {result.get('content')}\n"
+                                    continue_processing = False
+                                else:
+                                    # Format tool result for conversation history
+                                    tool_result_msg = self._format_tool_result_message(result)
+                                    self.conversation_history.append(tool_result_msg)
+                                    
+                                    # Check if we need to continue processing
+                                    continue_processing = self._needs_continuation(response_text, result)
+                                    if continue_processing:
+                                        message_content = "Continue with the next step based on the previous result."
+
                 # Add the current exchange to conversation history
                 self.conversation_history.append({"role": "user", "content": message_content})
                 self.conversation_history.append({"role": "assistant", "content": response_text})
@@ -157,7 +161,11 @@ class ClaudeAPI:
                 if tool_results:
                     logger.info(f"Tool results: {tool_results}")
             
-            return current_response
+            if iteration_count >= self.max_iterations:
+                logger.warning("Reached maximum number of conversation iterations")
+                current_response += "\nReached maximum number of conversation iterations. Some tasks may be incomplete."
+            
+            return current_response.strip()
             
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")
