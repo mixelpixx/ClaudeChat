@@ -89,13 +89,21 @@ class ClaudeAPI:
                     'working_directory': working_directory
                 })
                 
-                if response.status_code == 202:  # Approval required
-                    return {
-                        "type": "tool_result",
-                        "tool_use_id": tool_id,
-                        "content": "Command requires approval: " + command,
-                        "is_error": True
-                    }
+                if response.status_code == 202:  # Command requires approval
+                    # Show approval dialog
+                    if self.handle_command_approval(command):
+                        # Retry command after approval
+                        response = requests.post('http://localhost:5000/execute', json={
+                            'command': command,
+                            'working_directory': working_directory
+                        })
+                    else:
+                        return {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": "Command requires approval: " + command,
+                            "is_error": True
+                        }
                 
                 result = response.json()
                 if result.get('status') == 'started':
@@ -148,6 +156,26 @@ class ClaudeAPI:
         
         else:
             return f"Unsupported tool: {tool_name}"
+
+    def handle_command_approval(self, command):
+        """Handle command approval through GUI dialog"""
+        dialog = CommandApprovalDialog(command)
+        dialog.exec()
+        
+        result = dialog.result
+        if result == "deny":
+            return False
+        
+        if result == "approve_always":
+            # Add to whitelist permanently
+            base_cmd = command.split()[0].lower()
+            self.tools.approve_command(base_cmd, permanent=True)
+        elif result == "approve":
+            # Add to whitelist temporarily
+            base_cmd = command.split()[0].lower()
+            self.tools.approve_command(base_cmd, permanent=False)
+            
+        return True
 
     def clear_conversation(self):
         self.conversation_history = []
