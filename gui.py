@@ -1,9 +1,11 @@
 import sys
 import os
+import json
+import datetime
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QTextEdit, QTreeWidget, QTreeWidgetItem, 
-    QTabWidget, QMenuBar, QMenu, QToolBar, QStatusBar,
+    QTabWidget, QMenuBar, QMenu, QToolBar, QStatusBar, QPlainTextEdit,
     QMessageBox, QFileDialog, QDialog, QLabel, QLineEdit, QPushButton
 )
 from PyQt6.QtGui import QAction, QIcon, QTextCharFormat, QColor, QSyntaxHighlighter, QFont, QKeySequence
@@ -78,6 +80,51 @@ class FileSystemBrowser(QTreeWidget):
             dir_item = QTreeWidgetItem(home, [dir_name, "Directory"])
             dir_item.setIcon(0, QIcon.fromTheme("folder"))
 
+class CommandApprovalDialog(QDialog):
+    def __init__(self, command, parent=None):
+        super().__init__(parent)
+        self.command = command
+        self.result = "deny"
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setWindowTitle("Command Approval Required")
+        layout = QVBoxLayout(self)
+        
+        # Command display
+        command_label = QLabel(f"Command requires approval:\n{self.command}")
+        layout.addWidget(command_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        deny_btn = QPushButton("Deny")
+        deny_btn.clicked.connect(self.deny_clicked)
+        
+        approve_btn = QPushButton("Approve Once")
+        approve_btn.clicked.connect(self.approve_clicked)
+        
+        approve_always_btn = QPushButton("Approve Always")
+        approve_always_btn.clicked.connect(self.approve_always_clicked)
+        
+        button_layout.addWidget(deny_btn)
+        button_layout.addWidget(approve_btn)
+        button_layout.addWidget(approve_always_btn)
+        
+        layout.addLayout(button_layout)
+    
+    def deny_clicked(self):
+        self.result = "deny"
+        self.accept()
+    
+    def approve_clicked(self):
+        self.result = "approve"
+        self.accept()
+    
+    def approve_always_clicked(self):
+        self.result = "approve_always"
+        self.accept()
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -105,8 +152,15 @@ class MainWindow(QMainWindow):
         
         # Tabs for additional functionality
         tabs = QTabWidget()
-        tabs.addTab(QWidget(), "Command History")
-        tabs.addTab(QWidget(), "Tool Outputs")
+        
+        # Initialize command history and tool output tabs with text areas
+        self.command_history = QPlainTextEdit()
+        self.command_history.setReadOnly(True)
+        self.tool_outputs = QPlainTextEdit()
+        self.tool_outputs.setReadOnly(True)
+        
+        tabs.addTab(self.command_history, "Command History")
+        tabs.addTab(self.tool_outputs, "Tool Outputs")
         
         central_splitter.addWidget(conversation_view)
         central_splitter.addWidget(tabs)
@@ -174,19 +228,19 @@ class MainWindow(QMainWindow):
         statusbar = self.statusBar()
         statusbar.showMessage("Ready")
         
-    def keyPressEvent(self, event):
-        """Handle key press events for the main window"""
-        if self.message_input.hasFocus():
-            if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-                if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
-                    # Shift+Enter: insert newline
-                    self.message_input.insertPlainText('\n')
-                else:
-                    # Enter: send message
-                    self.send_message()
-                event.accept()
-                return
-        super().keyPressEvent(event)
+    def add_to_command_history(self, command):
+        """Add a command to the command history tab"""
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.command_history.appendPlainText(f"[{timestamp}] {command}")
+        
+    def add_to_tool_outputs(self, output):
+        """Add tool output to the tool outputs tab"""
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if isinstance(output, dict):
+            formatted_output = json.dumps(output, indent=2)
+        else:
+            formatted_output = str(output)
+        self.tool_outputs.appendPlainText(f"[{timestamp}]\n{formatted_output}\n")
         
     def send_message(self):
         """Send the current message to Claude"""
@@ -194,11 +248,16 @@ class MainWindow(QMainWindow):
         if message:
             # Add user message to conversation
             self.conversation_view.append(f"You: {message}")
+            self.add_to_command_history(message)
             
             # Get Claude's response
             try:
                 response = self.claude_api.send_message(message)
-                self.conversation_view.append(f"Claude: {response}")
+                if isinstance(response, dict) and 'type' in response and response['type'] == 'tool_result':
+                    self.add_to_tool_outputs(response)
+                    self.conversation_view.append("Claude: Tool execution completed. See Tool Outputs tab for details.")
+                else:
+                    self.conversation_view.append(f"Claude: {response}")
             except Exception as e:
                 self.conversation_view.append(f"Error: {str(e)}")
             
@@ -213,6 +272,20 @@ class MainWindow(QMainWindow):
             self.image_path = file_path
             self.statusBar().showMessage(f"Image attached: {os.path.basename(file_path)}")
 
+    def keyPressEvent(self, event):
+        """Handle key press events for the main window"""
+        if self.message_input.hasFocus():
+            if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+                if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                    # Shift+Enter: insert newline
+                    self.message_input.insertPlainText('\n')
+                else:
+                    # Enter: send message
+                    self.send_message()
+                event.accept()
+                return
+        super().keyPressEvent(event)
+        
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
