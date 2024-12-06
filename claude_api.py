@@ -327,6 +327,21 @@ class ClaudeAPI:
                 }
             },
             {
+                "name": "read_multiple_files",
+                "description": "Read multiple files simultaneously. This is more efficient than reading files one by one when you need to analyze or compare multiple files. Each file's content is returned with its path as a reference. Failed reads for individual files won't stop the entire operation. Only works within allowed directories.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "paths": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Array of file paths to read"
+                        }
+                    },
+                    "required": ["paths"]
+                }
+            },
+            {
                 "name": "write_file", 
                 "description": "Create a new file or overwrite an existing file with new content. Use with caution as it will overwrite existing files without warning. Handles text content with proper encoding. Only works within allowed directories.",
                 "input_schema": {
@@ -342,6 +357,42 @@ class ClaudeAPI:
                         }
                     },
                     "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "edit_file",
+                "description": "Make selective edits using advanced pattern matching and formatting. Features line-based and multi-line content matching, whitespace normalization with indentation preservation, multiple simultaneous edits with correct positioning, git-style diff output with context, and preview changes with dry run mode.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "File to edit"
+                        },
+                        "edits": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "oldText": {
+                                        "type": "string",
+                                        "description": "Text to search for (can be substring)"
+                                    },
+                                    "newText": {
+                                        "type": "string",
+                                        "description": "Text to replace with"
+                                    }
+                                },
+                                "required": ["oldText", "newText"]
+                            }
+                        },
+                        "dryRun": {
+                            "type": "boolean",
+                            "description": "Preview changes without applying",
+                            "default": False
+                        }
+                    },
+                    "required": ["path", "edits"]
                 }
             },
             {
@@ -370,6 +421,51 @@ class ClaudeAPI:
                         }
                     },
                     "required": ["path"]
+                }
+            },
+            {
+                "name": "move_file",
+                "description": "Move or rename files and directories. Can move files between directories and rename them in a single operation. If the destination exists, the operation will fail. Works across different directories and can be used for simple renaming within the same directory. Both source and destination must be within allowed directories.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "source": {
+                            "type": "string",
+                            "description": "Source file/directory path"
+                        },
+                        "destination": {
+                            "type": "string",
+                            "description": "Destination file/directory path"
+                        }
+                    },
+                    "required": ["source", "destination"]
+                }
+            },
+            {
+                "name": "search_files",
+                "description": "Recursively search for files and directories matching a pattern. Searches through all subdirectories from the starting path. The search is case-insensitive and matches partial names. Returns full paths to all matching items. Great for finding files when you don't know their exact location. Only searches within allowed directories.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Starting directory path"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "description": "Search pattern to match"
+                        }
+                    },
+                    "required": ["path", "pattern"]
+                }
+            },
+            {
+                "name": "list_allowed_directories",
+                "description": "Returns the list of directories that this server is allowed to access. Use this to understand which directories are available before trying to access files.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
                 }
             }
         ]
