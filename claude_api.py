@@ -172,7 +172,9 @@ class ClaudeAPI:
         logger.debug(f"Handling tool use: {tool_name}")
         logger.debug(f"Tool input: {tool_input}")
         
-        if tool_name == "execute_command":
+        if tool_name in ["read_file", "write_file", "create_directory", "list_directory", "search_files", "get_file_info"]:
+            return self._handle_filesystem_operation(tool_name, tool_input, tool_id)
+        elif tool_name == "execute_command":
             return self._execute_command_with_retry(tool_input, tool_id)
             
         return {
@@ -181,6 +183,35 @@ class ClaudeAPI:
             "content": f"Unknown tool: {tool_name}",
             "is_error": True
         }
+
+    def _handle_filesystem_operation(self, operation, tool_input, tool_id):
+        """Handle filesystem operations using MCP protocol"""
+        try:
+            response = requests.post(
+                self.filesystem_url,
+                json={
+                    "type": "call_tool_request",
+                    "params": {
+                        "name": operation,
+                        "arguments": tool_input
+                    }
+                }
+            )
+            
+            result = response.json()
+            return {
+                "type": "tool_result",
+                "tool_use_id": tool_id,
+                "content": result.get("content", ""),
+                "is_error": result.get("is_error", False)
+            }
+        except Exception as e:
+            return {
+                "type": "tool_result", 
+                "tool_use_id": tool_id,
+                "content": f"Error performing filesystem operation: {str(e)}",
+                "is_error": True
+            }
 
     def _execute_command_with_retry(self, tool_input, tool_id):
         """Execute command with retry logic and human intervention"""
@@ -282,39 +313,63 @@ class ClaudeAPI:
         """Define available tools for Claude to use"""
         return [
             {
-                "name": "execute_command",
-                "description": "Execute a command in the command prompt or terminal using the cmd-tool service. This tool allows running system commands with controlled execution and output retrieval.",
+                "name": "read_file",
+                "description": "Read the complete contents of a file from the file system. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Only works within allowed directories.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "command": {
-                            "type": "string", 
-                            "description": "The command to execute. Must be a valid system command."
-                        },
-                        "working_directory": {
+                        "path": {
                             "type": "string",
-                            "description": "Optional working directory for command execution. Defaults to current directory if not specified."
+                            "description": "The file path to read"
                         }
                     },
-                    "required": ["command"]
+                    "required": ["path"]
                 }
             },
             {
-                "name": "filesystem_operation",
-                "description": "Perform various file system operations using the secure filesystem service. Supports reading, writing, creating, and searching files and directories with strict security controls.",
+                "name": "write_file", 
+                "description": "Create a new file or overwrite an existing file with new content. Use with caution as it will overwrite existing files without warning. Handles text content with proper encoding. Only works within allowed directories.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "operation": {
+                        "path": {
                             "type": "string",
-                            "enum": ["read_file", "write_file", "create_directory", "list_directory", "search_files", "get_file_info"],
-                            "description": "The type of filesystem operation to perform."
+                            "description": "The file path to write to"
                         },
-                        "path": {"type": "string", "description": "The file or directory path for the operation"},
-                        "content": {"type": "string", "description": "Optional content for write operations"},
-                        "pattern": {"type": "string", "description": "Optional search pattern for search operations"}
+                        "content": {
+                            "type": "string",
+                            "description": "The content to write to the file"
+                        }
                     },
-                    "required": ["operation", "path"]
+                    "required": ["path", "content"]
+                }
+            },
+            {
+                "name": "create_directory",
+                "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Only works within allowed directories.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The directory path to create"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            },
+            {
+                "name": "list_directory",
+                "description": "List all files and directories in a specified path. Results include [FILE] and [DIR] prefixes to distinguish types. Only works within allowed directories.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The directory path to list"
+                        }
+                    },
+                    "required": ["path"]
                 }
             }
         ]

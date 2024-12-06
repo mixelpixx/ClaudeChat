@@ -10,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 class OperationType(Enum):
     """Operation types for tool management"""
-    FILE_READ = "file_read"
-    FILE_WRITE = "file_write"
-    DIR_READ = "dir_read"
-    DIR_CREATE = "dir_create"
     CMD_EXECUTE = "cmd_execute"
 
 class ToolManager:
@@ -21,7 +17,6 @@ class ToolManager:
         """Initialize the tool manager with whitelist"""
         # Update paths for tools in new locations
         self.cmd_tool_path = Path('Tools/cmd-tool/cmd-tool.py')
-        self.filesystem_path = Path('Tools/filesystem/filesystem.py')
         self.whitelist_file = Path.home() / '.claude_chat' / 'whitelist.json'
         self.whitelist = self.load_whitelist()
 
@@ -88,40 +83,3 @@ class ToolManager:
             return True, response.json()
         except Exception as e:
             return False, f"Error executing command: {str(e)}"
-
-    def file_operation(self, operation, path, content=None):
-        """Perform a file operation"""
-        try:
-            # Use the filesystem service for file operations
-            import requests
-            response = requests.post('http://localhost:5000/mcp', json={
-                'type': 'call_tool_request',
-                'params': {
-                    'name': operation.value,
-                    'arguments': {
-                        'path': path,
-                        'content': content
-                    }
-                }
-            })
-            return response.json()
-        except Exception as e:
-            return f"Error performing file operation: {str(e)}"
-
-    def dir_operation(self, operation, path):
-        """Perform a directory operation"""
-        try:
-            # Use the filesystem service for directory operations
-            import requests
-            response = requests.post('http://localhost:5000/mcp', json={
-                'type': 'call_tool_request',
-                'params': {
-                    'name': operation.value,
-                    'arguments': {
-                        'path': path
-                    }
-                }
-            })
-            return response.json()
-        except Exception as e:
-            return f"Error performing directory operation: {str(e)}"
