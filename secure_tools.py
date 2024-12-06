@@ -19,6 +19,9 @@ class OperationType(Enum):
 class ToolManager:
     def __init__(self):
         """Initialize the tool manager with whitelist"""
+        # Update paths for tools in new locations
+        self.cmd_tool_path = Path('Tools/cmd-tool/cmd-tool.py')
+        self.filesystem_path = Path('Tools/filesystem/filesystem.py')
         self.whitelist_file = Path.home() / '.claude_chat' / 'whitelist.json'
         self.whitelist = self.load_whitelist()
 
@@ -80,7 +83,7 @@ class ToolManager:
         try:
             # Execute command using the command-tool service
             import requests
-            response = requests.post('http://localhost:5000/execute', 
+            response = requests.post('http://localhost:5001/execute', 
                                   json={'command': command})
             return True, response.json()
         except Exception as e:

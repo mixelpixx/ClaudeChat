@@ -24,8 +24,8 @@ class ClaudeAPI:
             self.tools = None  # Will be set by GUI
             
             # Server configurations
-            self.filesystem_url = 'http://localhost:5000/mcp'
-            self.cmdtool_url = 'http://localhost:5001/execute'
+            self.filesystem_url = 'http://localhost:5000/mcp'  # Filesystem tool endpoint
+            self.cmdtool_url = 'http://localhost:5001/execute'  # Command tool endpoint
             self.max_retries = 3  # Maximum number of retry attempts
             self.retry_delay = 2  # Seconds between retries
             

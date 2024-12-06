@@ -20,15 +20,19 @@ A sophisticated desktop application that provides a graphical interface for inte
    # Or add to ~/.claude_chat/config.json
    ```
 
+## Directory Structure
+  - cmd-tool/ - Command execution tool
+  - filesystem/ - Filesystem operations tool
+
 ## Usage
 
 1. **Starting the Application**
    ```bash
    # Start the command tool service
-   python cmd-tool/cmd-tool.py
+   python Tools/cmd-tool/cmd-tool.py
    
    # Start the filesystem service (specify allowed directories)
-   python filesystem/filesystem.py /path/to/allowed/directory
+   python Tools/filesystem/filesystem.py /path/to/allowed/directory
    
    # Launch the GUI
    python gui.py
