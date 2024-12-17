@@ -51,7 +51,7 @@ We then call tool_user.use_tools() with our query to let claude answer our quest
 tool_user = ToolUser([weather_tool])
 
 # Call the tool_user with a prompt to get a version of Claude that can use your tools!
-messages = [{"role": "user", "content": "I live in San Francisco, what shold I wear today?"}]
+messages = [{"role": "user", "content": "I live in San Francisco, what should I wear today?"}]
 print(tool_user.use_tools(messages, execution_mode='automatic'))
 You may also notice that we set execution_mode='automatic', recall that this means Claude will have its tool usage requests automatically executed and fed back in until it decides it has done enough to answer your query, at which point it will respond to you with that answer. If you set execution_mode='manual', Claude will stop after its first request to use a tool/tools and you will be returned the requested tool(s) to use and the arguments to use them with.
 
