@@ -44,14 +44,14 @@ tool_parameters = [
 ]
 
 weather_tool = WeatherTool(tool_name, tool_description, tool_parameters)
-Finally, we create an instance of ToolUser, passing it a list containg our weather_tool instance.
+Finally, we create an instance of ToolUser, passing it a list containing our weather_tool instance.
 We then call tool_user.use_tools() with our query to let claude answer our question while making use of our provided tools where appropriate.
 
 # Pass the tool instance into the ToolUser
 tool_user = ToolUser([weather_tool])
 
 # Call the tool_user with a prompt to get a version of Claude that can use your tools!
-messages = [{"role": "user", "content": "I live in San Francisco, what shold I wear today?"}]
+messages = [{"role": "user", "content": "I live in San Francisco, what should I wear today?"}]
 print(tool_user.use_tools(messages, execution_mode='automatic'))
 You may also notice that we set execution_mode='automatic', recall that this means Claude will have its tool usage requests automatically executed and fed back in until it decides it has done enough to answer your query, at which point it will respond to you with that answer. If you set execution_mode='manual', Claude will stop after its first request to use a tool/tools and you will be returned the requested tool(s) to use and the arguments to use them with.
 
@@ -64,13 +64,13 @@ import sqlite3 # Adjust for your DB type
 
 from tool_use_package.base_tool import BaseTool
 from tool_use_package.tool_user import ToolUser
-from tool_use_package.prompt_constructors import construct_format_sql_tool_for_claude_prompt # Special fromatting that we want to define for SQL tools, will discuss more later
+from tool_use_package.prompt_constructors import construct_format_sql_tool_for_claude_prompt # Special formatting that we want to define for SQL tools, will discuss more later
 The below code should look pretty familiar to you by now (defining SQLTool by inheriting BaseTool and defininng its use_tool()method), with two exceptions.
 
 We have overridden the __init__() method so that the tool can also have attributes db_schema (the DB's schema), db_conn (a valid DB connection string), and db_dialect (the SQL dialect of the DB). We need to ensure that we also call super().__init__(name, description, parameters) to keep the core functionality of our tool working when we override __init__().
-We have defined a format_tool_for_claude() method that is overriding the format_tool_for_claude() in BaseTool. This is a common technique we can use when we want to augment the part of the system prompt that describes how to use our tool to Claude. You should consider doing this if there are special features of your tool or information about it not easily addressed in standard format. In this case, that is information about the schema of the databse and the dialect. If you want to see these queries and how we are changing them you can check out base_tool.py and prompt_constructors.py.
+We have defined a format_tool_for_claude() method that is overriding the format_tool_for_claude() in BaseTool. This is a common technique we can use when we want to augment the part of the system prompt that describes how to use our tool to Claude. You should consider doing this if there are special features of your tool or information about it not easily addressed in standard format. In this case, that is information about the schema of the database and the dialect. If you want to see these queries and how we are changing them you can check out base_tool.py and prompt_constructors.py.
 class SQLTool(BaseTool):
-    """A tool that can run SQL queries against a datbase. db_conn should be a connection string such as sqlite3.connect('test.db')"""
+    """A tool that can run SQL queries against a database. db_conn should be a connection string such as sqlite3.connect('test.db')"""
 
     def __init__(self, name, description, parameters, db_schema, db_conn, db_dialect):
         super().__init__(name, description, parameters)
@@ -93,7 +93,7 @@ class SQLTool(BaseTool):
         """Overriding the base class format_tool_for_claude in this case, which we don't always do. Returns a formatted representation of the tool suitable for the Claude system prompt."""
         
         return construct_format_sql_tool_for_claude_prompt(self.name, self.description, self.parameters, self.db_schema, self.db_dialect)
-In order to run the example and see Claude in action, you will need a SQL databse. Here is how you can easily make one for the purpose of this example.
+In order to run the example and see Claude in action, you will need a SQL database. Here is how you can easily make one for the purpose of this example.
 
 conn = sqlite3.connect('test.db')
 cursor = conn.cursor()
@@ -194,7 +194,7 @@ tool_parameters = [
     {"name": "query", "type": "str", "description": "The search term to enter into the Amazon search engine. Remember to use broad topic keywords."},
     {"name": "n_search_results_to_use", "type": "int", "description": "The number of search results to return, where each search result is an Amazon product."}
 ]
-Once we have our tool definitions, we can create the tool and pass in our elasticsearch credentials (defined as enviroment variables) and the name of our index.
+Once we have our tool definitions, we can create the tool and pass in our elasticsearch credentials (defined as environment variables) and the name of our index.
 
 amazon_search_tool = ElasticsearchSearchTool(
     name=tool_name, 
@@ -257,7 +257,7 @@ The embeddings are stored as a list of ids, vectors, and metadatas. The ids are 
 In query, the query embedding is compared to all embeddings in the Pinecone index using the similarity specified when the index was created.
 Note that the vectorstore does not contain any logic for creating embeddings. It is assumed that the embeddings are created elsewhere using Embedders (we have provided a HuggingFace Embedder) and passed to the vectorstore for storage and retrieval. The utils.embed_and_upload() is a wrapper to help do this.
 
-In order to use the Embedder, please set your HuggingFace API key as an enviroment variable (get a key here):
+In order to use the Embedder, please set your HuggingFace API key as an environment variable (get a key here):
 
 # MacOS
 export HUGGINGFACE_API_KEY={your_huggingface_api_key}
